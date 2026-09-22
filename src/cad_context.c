@@ -1,7 +1,5 @@
 #include "cad_context.h"
-
 #include <math.h>
-
 #include "project_io.h"
 #include "layer.h"
 #include <stdio.h>
@@ -26,6 +24,7 @@ void AppContext_InitFonts(AppContext *ctx) {
     int titleSize = (int)(16 * ctx->uiScale);
     int bodySize  = (int)(14 * ctx->uiScale);
     int noteSize  = (int)(24 * ctx->uiScale);
+
     if (menuSize < 12) menuSize = 12;
     if (titleSize < 12) titleSize = 12;
     if (bodySize < 12) bodySize = 12;
@@ -68,13 +67,16 @@ void AppContext_Init(AppContext *ctx) {
     memset(ctx, 0, sizeof(AppContext));
     ResourceManager_Init(&ctx->resManager);
     ctx->uiConfig = LoadUiConfig(CONFIG_FILENAME);
+
     ctx->camera.target = (Vector2){ 0.0f, 0.0f };
     ctx->camera.offset = (Vector2){ (float)SCREEN_WIDTH / 2.0f, (float)SCREEN_HEIGHT / 2.0f };
     ctx->camera.zoom = 1.0f;
     ctx->gridSpacing = 50.0f;
+
     ctx->uiScale = ctx->uiConfig.uiScale;
     ctx->prevUiScale = ctx->uiConfig.uiScale;
     ctx->tempUiScale = ctx->uiConfig.uiScale * 100.0f;
+
     ctx->showHudPanel = true;
     ctx->showLeftDock = true;
     ctx->showRightDock = true;
@@ -91,6 +93,7 @@ void AppContext_Init(AppContext *ctx) {
     ctx->cachedAABBs = (AABB*)calloc(MAX_ELEMENTS, sizeof(AABB));
     ctx->spatialTree = (SpatialQuadTree*)calloc(1, sizeof(SpatialQuadTree));
     ctx->spatialIndexDirty = true;
+
     ctx->activeHandle = HANDLE_NONE;
     ctx->activeHandleElementIdx = -1;
 
@@ -99,11 +102,14 @@ void AppContext_Init(AppContext *ctx) {
     ctx->snapEnabled = ctx->uiConfig.snapEnabled;
     ctx->snapThreshold = 14.0f;
 
+    CAD_PID_Init(&ctx->cadPid);
+
     ctx->tweenCtx = TweenContext_Create(128);
     ctx->uiAnim.leftDockProgress = ctx->showLeftDock ? 1.0f : 0.0f;
     ctx->uiAnim.rightDockProgress = ctx->showRightDock ? 1.0f : 0.0f;
     ctx->uiAnim.hudProgress = ctx->showHudPanel ? 1.0f : 0.0f;
     ctx->uiAnim.contextMenuProgress = 0.0f;
+
     InitThemeColors(ctx);
 }
 
@@ -119,6 +125,7 @@ void AppContext_Cleanup(AppContext *ctx) {
     free(ctx->elementStartStates);
     free(ctx->cachedAABBs);
     free(ctx->spatialTree);
+
     for (int l = 0; l < ctx->layerCount; l++) {
         Layer_Free(&ctx->layers[l]);
     }
@@ -130,7 +137,9 @@ void AppContext_Update(AppContext *ctx) {
     if (ctx->statusMessageTimer > 0.0f) {
         ctx->statusMessageTimer -= dt;
     }
+
     ctx->camera.offset = (Vector2){ (float)GetScreenWidth() / 2.0f, (float)GetScreenHeight() / 2.0f };
+
     Vector2 mousePos = GetMousePosition();
     g_CADState.mouseScreen = mousePos;
     g_CADState.mouseWorld = GetScreenToWorld2D(mousePos, ctx->camera);
@@ -156,28 +165,23 @@ void AppContext_Update(AppContext *ctx) {
         ctx->prevUiScale = ctx->uiScale;
     }
 
-    // Trigger Panel Transitions via Tween
     float targetLeft = ctx->showLeftDock ? 1.0f : 0.0f;
     if (fabsf(ctx->uiAnim.leftDockProgress - targetLeft) > 0.001f) {
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.leftDockProgress, targetLeft, 0.20f, TweenEase_CubicOut);
     }
-
     float targetRight = ctx->showRightDock ? 1.0f : 0.0f;
     if (fabsf(ctx->uiAnim.rightDockProgress - targetRight) > 0.001f) {
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.rightDockProgress, targetRight, 0.20f, TweenEase_CubicOut);
     }
-
     float targetHud = ctx->showHudPanel ? 1.0f : 0.0f;
     if (fabsf(ctx->uiAnim.hudProgress - targetHud) > 0.001f) {
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.hudProgress, targetHud, 0.20f, TweenEase_CubicOut);
     }
-
     float targetCtx = ctx->showContextMenu ? 1.0f : 0.0f;
     if (fabsf(ctx->uiAnim.contextMenuProgress - targetCtx) > 0.001f) {
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.contextMenuProgress, targetCtx, 0.15f, TweenEase_QuadOut);
     }
 
-    // Trigger Color Transitions via Tween
     if (ctx->uiAnim.currentThemeTarget != ctx->uiConfig.uiTheme) {
         ctx->uiAnim.currentThemeTarget = ctx->uiConfig.uiTheme;
         float targetBgR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 242.0f : 38.0f;
@@ -214,6 +218,5 @@ void AppContext_Update(AppContext *ctx) {
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.textB, targetTxtB, themeDuration, TweenEase_QuadInOut);
     }
 
-    // Step Tween Engine
     Tween_Update(ctx->tweenCtx, dt);
 }

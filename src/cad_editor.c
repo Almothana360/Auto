@@ -3,6 +3,7 @@
 #include "cad_tools.h"
 #include "cad_selection.h"
 #include "cad_math.h"
+#include "cad_pid.h"
 #include "spatial_tree.h"
 #include "project_io.h"
 #include "render_utils.h"
@@ -13,10 +14,16 @@
 
 void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
     (void)mu_ctx;
+
+    // First process active P&ID radial palette and placement actions
+    bool pidHandled = CAD_PID_Update(&app->cadPid, app, overUI);
+    if (pidHandled) {
+        return;
+    }
+
     Vector2 activeToolPoint = g_CADState.mouseWorld;
     bool isElementSnapped = false;
 
-    // Viewport Context snapping calculations - Independent grid and element snapping
     if (!overUI && g_CADState.activeTool != TOOL_PAN) {
         if (app->snapEnabled) {
             activeToolPoint = GetClosestSnapPoint_Spatial(app->spatialTree, g_CADState.mouseWorld, app->elements, app->elementCount, app->layers, 20.0f / app->camera.zoom);
@@ -30,7 +37,6 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
 
     int selectedCount = CountSelectedElements(app->elements, app->elementCount);
 
-    // Right-Click Context and Tool Resolution
     if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !overUI && g_CADState.activeTool != TOOL_PAN) {
         if (g_CADState.activeTool == TOOL_ADD_POLYLINE && app->tempPolyline.pointCount > 1) {
             if (app->elementCount < MAX_ELEMENTS) {
@@ -74,7 +80,6 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
         app->showContextMenu = false;
     }
 
-    // Hand-off execution to modular components
     UpdateTools(app, activeToolPoint, overUI);
     UpdateSelectionAndHandles(app, activeToolPoint, overUI, selectedCount);
     UpdateCameraInput(app, overUI);
@@ -83,9 +88,9 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
 void RenderCadEditorViewport(AppContext *app, bool overUI) {
     (void)overUI;
     Font noteFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_NOTE);
+
     BeginMode2D(app->camera);
 
-    // Frustum and Grid Mapping
     Vector2 topLeft = GetScreenToWorld2D((Vector2){ 0, 0 }, app->camera);
     Vector2 bottomRight = GetScreenToWorld2D((Vector2){ (float)GetScreenWidth(), (float)GetScreenHeight() }, app->camera);
     int startX = (int)(floorf(topLeft.x / app->gridSpacing) * app->gridSpacing);
@@ -104,13 +109,13 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
         .max = { fmaxf(topLeft.x, bottomRight.x), fmaxf(topLeft.y, bottomRight.y) }
     };
 
-    // Render Layer Elements
     for (int r = -100; r <= 100; r++) {
         for (int l = 0; l < app->layerCount; l++) {
             if (!app->layers[l].visible || app->layers[l].renderOrder != r) continue;
             for (int i = 0; i < app->elementCount; i++) {
                 if (app->elements[i].layerIndex != l) continue;
                 if (!AABBIntersectsAABB(app->cachedAABBs[i], viewFrustumAABB)) continue;
+
                 bool isSelected = app->elements[i].selected;
                 Color renderColor = GetElementColor(&app->elements[i], app->layers, app->layerCount);
 
@@ -147,7 +152,6 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
         }
     }
 
-    // Resolve Tool/Snap Points for Rendering Output - Independent Snapping
     Vector2 activeToolPoint = g_CADState.mouseWorld;
     bool isElementSnapped = false;
     if (app->snapEnabled) {
@@ -159,7 +163,6 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
         activeToolPoint.y = roundf(g_CADState.mouseWorld.y / app->gridSpacing) * app->gridSpacing;
     }
 
-    // Draw Snapping Indicators
     if (!overUI && g_CADState.activeTool != TOOL_SELECT && g_CADState.activeTool != TOOL_PAN) {
         Color snapIndicatorColor = isElementSnapped ? LIME : SKYBLUE;
         float markerRadius = (isElementSnapped ? 6.0f : 4.0f) / app->camera.zoom;
@@ -167,10 +170,11 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
         DrawCircleLinesV(activeToolPoint, (markerRadius + 2.0f / app->camera.zoom), snapIndicatorColor);
     }
 
-    // Hand-off Render Execution to modular components
     if (!overUI) {
         RenderToolPreviews(app, activeToolPoint, noteFont);
+        CAD_PID_RenderToolPreview(&app->cadPid, app, activeToolPoint);
     }
+
     RenderSelectionGizmos(app);
     EndMode2D();
 }

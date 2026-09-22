@@ -2,6 +2,7 @@
 #include "console_cmd.h"
 #include "project_io.h"
 #include "layer.h"
+#include "cad_pid.h"
 #include <stdio.h>
 #include <string.h>
 #include "cad_math.h"
@@ -38,8 +39,6 @@ void ApplyMicroUiTheme(mu_Context *ctx, int theme) {
         ctx->style->colors[MU_COLOR_SCROLLBASE]  = mu_color(40, 40, 40, 255);
         ctx->style->colors[MU_COLOR_SCROLLTHUMB] = mu_color(30, 30, 30, 255);
     }
-
-    // Apply smoothly tweened theme colors
     ctx->style->colors[MU_COLOR_PANELBG]  = mu_color((int)ctx->style->colors[MU_COLOR_PANELBG].r, (int)ctx->style->colors[MU_COLOR_PANELBG].g, (int)ctx->style->colors[MU_COLOR_PANELBG].b, 255);
     ctx->style->colors[MU_COLOR_WINDOWBG] = mu_color((int)ctx->style->colors[MU_COLOR_WINDOWBG].r, (int)ctx->style->colors[MU_COLOR_WINDOWBG].g, (int)ctx->style->colors[MU_COLOR_WINDOWBG].b, 255);
 }
@@ -75,6 +74,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             int menuBtnH = (int)(menuBarHeight - 6.0f * app->uiScale);
             if (menuBtnH < 18) menuBtnH = 18;
             mu_layout_row(mu_ctx, 5, colWidths, menuBtnH);
+
             if (mu_button(mu_ctx, "File")) { mu_open_popup(mu_ctx, "FileMenu"); app->openFileMenu = true; }
             if (mu_button(mu_ctx, "Edit")) { mu_open_popup(mu_ctx, "EditMenu"); app->openEditMenu = true; }
             if (mu_button(mu_ctx, "Window")) { mu_open_popup(mu_ctx, "WindowMenu"); app->openWindowMenu = true; }
@@ -152,8 +152,10 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             if (app->openElementMenu && mu_begin_popup(mu_ctx, "ElementMenu")) {
                 mu_layout_row(mu_ctx, 1, (int[]){ (int)(160 * app->uiScale) }, (int)(22 * app->uiScale));
                 if (mu_button(mu_ctx, "Select Tool")) { ProcessCommand("select", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
-                if (mu_button(mu_ctx, "Draw Pipe")) { ProcessCommand("pipe", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
-                if (mu_button(mu_ctx, "Place Flange")) { ProcessCommand("flange", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
+                if (mu_button(mu_ctx, "P&ID Circular Palate")) {
+                    CAD_PID_OpenPalette(&app->cadPid, (Vector2){ (float)winW * 0.5f, (float)winH * 0.5f });
+                    app->openElementMenu = false;
+                }
                 if (mu_button(mu_ctx, "Add Rectangle")) { ProcessCommand("rect", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
                 if (mu_button(mu_ctx, "Add Circle")) { ProcessCommand("circle", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
                 if (mu_button(mu_ctx, "Add Line")) { ProcessCommand("line", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
@@ -225,6 +227,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     for (int i = 0; i < app->layerCount; i++) {
                         mu_push_id(mu_ctx, &app->layers[i], sizeof(Layer*));
                         mu_layout_row(mu_ctx, 8, lCols, (int)(19 * app->uiScale));
+
                         bool isTargetActive = (i == app->activeLayerIndex);
                         if (mu_button(mu_ctx, isTargetActive ? ">" : " ")) {
                             app->activeLayerIndex = i;
@@ -272,14 +275,17 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     mu_layout_row(mu_ctx, 2, (int[]){ -95, -1 }, (int)(20 * app->uiScale));
                     mu_text(mu_ctx, TextFormat("Elements (%d)", app->elementCount));
                     if (mu_button(mu_ctx, "Deselect")) DeselectAllElements(app->elements, app->elementCount);
+
                     bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
                     for (int i = 0; i < app->elementCount; i++) {
                         mu_push_id(mu_ctx, &app->elements[i], sizeof(GridElement*));
                         mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(19 * app->uiScale));
-                        const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rectangle" : (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" : (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" : (app->elements[i].type == ELEMENT_ARC ? "Arc" : (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" : (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" : (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" : (app->elements[i].type == ELEMENT_LINE ? "Pipe/Line" : (app->elements[i].type == ELEMENT_SYMBOL ? "Flange/Symbol" : "Dimension"))))))));
+
+                        const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rectangle" : (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" : (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" : (app->elements[i].type == ELEMENT_ARC ? "Arc" : (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" : (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" : (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" : (app->elements[i].type == ELEMENT_LINE ? "Line" : (app->elements[i].type == ELEMENT_SYMBOL ? "Symbol/Instrument" : "Dimension"))))))));
                         const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
                         char itemLabel[64];
                         snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
+
                         if (mu_button(mu_ctx, itemLabel)) {
                             if (!isCtrl) DeselectAllElements(app->elements, app->elementCount);
                             app->elements[i].selected = !app->elements[i].selected;
@@ -320,7 +326,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                 if (selectedCount > 0 && selectedElementIndex >= 0) {
                     GridElement *el = &app->elements[selectedElementIndex];
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
-                    const char *title = (el->type == ELEMENT_RECT) ? "Type: Rectangle" : (el->type == ELEMENT_CIRCLE ? "Type: Circle" : (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" : (el->type == ELEMENT_ARC ? "Type: Arc" : (el->type == ELEMENT_TEXT_NOTE ? "Type: Text Note" : (el->type == ELEMENT_POLYLINE ? "Type: Polyline" : (el->type == ELEMENT_FREEHAND ? "Type: Freehand" : (el->type == ELEMENT_LINE ? "Type: Pipe / Line" : (el->type == ELEMENT_SYMBOL ? "Type: Flange / Symbol" : "Type: Dimension"))))))));
+                    const char *title = (el->type == ELEMENT_RECT) ? "Type: Rectangle" : (el->type == ELEMENT_CIRCLE ? "Type: Circle" : (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" : (el->type == ELEMENT_ARC ? "Type: Arc" : (el->type == ELEMENT_TEXT_NOTE ? "Type: Text Note" : (el->type == ELEMENT_POLYLINE ? "Type: Polyline" : (el->type == ELEMENT_FREEHAND ? "Type: Freehand" : (el->type == ELEMENT_LINE ? "Type: Line" : (el->type == ELEMENT_SYMBOL ? "Type: Instrument / Symbol" : "Type: Dimension"))))))));
                     mu_text(mu_ctx, title);
                     mu_text(mu_ctx, TextFormat("Entity ID: %u", el->id));
                     mu_text(mu_ctx, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y));
@@ -363,6 +369,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
+
                     mu_text(mu_ctx, TextFormat("Rotation: %.1f deg", el->rotation));
                     if (mu_slider(mu_ctx, &el->rotation, 0.0f, 360.0f)) app->spatialIndexDirty = true;
                     mu_text(mu_ctx, TextFormat("Scale X: %.2f | Y: %.2f", el->scale.x, el->scale.y));
@@ -433,7 +440,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
-
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
                     if (el->useCustomColor && mu_button(mu_ctx, "Reset to Layer Color")) {
                         Command cmd = { 0 };
@@ -489,8 +495,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                 }
 
                 const char *toolName = "Select";
-                if (g_CADState.activeTool == TOOL_DRAW_PIPE) toolName = (app->dimStep == 0) ? "Pipe (Start)" : "Pipe (End)";
-                else if (g_CADState.activeTool == TOOL_PLACE_FLANGE) toolName = "Place Flange";
+                if (app->cadPid.isPlacingInstrument) toolName = "P&ID Insert";
                 else if (g_CADState.activeTool == TOOL_ADD_RECT) toolName = "Add Rect";
                 else if (g_CADState.activeTool == TOOL_ADD_CIRCLE) toolName = "Add Circle";
                 else if (g_CADState.activeTool == TOOL_ADD_ELLIPSE) toolName = "Add Ellipse";
@@ -562,7 +567,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             mu_Rect cmRect = mu_rect((int)app->contextMenuPos.x, (int)app->contextMenuPos.y, (int)ctxWidth, (int)animatedHeight);
             mu_Container *cmWin = mu_get_container(mu_ctx, "##ContextMenu");
             if (cmWin) cmWin->rect = cmRect;
-
             if (mu_begin_window_ex(mu_ctx, "##ContextMenu", cmRect, MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
                 mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(22 * app->uiScale));
                 if (app->contextOnElement && app->contextElementIndex >= 0 && app->contextElementIndex < app->elementCount) {
@@ -640,8 +644,10 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     }
                 } else {
                     if (mu_button(mu_ctx, "Select Mode")) { g_CADState.activeTool = TOOL_SELECT; app->showContextMenu = false; }
-                    if (mu_button(mu_ctx, "+ Draw Pipe")) { g_CADState.activeTool = TOOL_DRAW_PIPE; app->dimStep = 0; app->showContextMenu = false; }
-                    if (mu_button(mu_ctx, "+ Place Flange")) { g_CADState.activeTool = TOOL_PLACE_FLANGE; app->showContextMenu = false; }
+                    if (mu_button(mu_ctx, "P&ID Circular Palate")) {
+                        CAD_PID_OpenPalette(&app->cadPid, app->contextMenuPos);
+                        app->showContextMenu = false;
+                    }
                     if (mu_button(mu_ctx, "+ Add Rectangle")) { g_CADState.activeTool = TOOL_ADD_RECT; app->showContextMenu = false; }
                     if (mu_button(mu_ctx, "+ Add Circle")) { g_CADState.activeTool = TOOL_ADD_CIRCLE; app->showContextMenu = false; }
                     if (mu_button(mu_ctx, "Deselect Elements")) { DeselectAllElements(app->elements, app->elementCount); app->showContextMenu = false; }
@@ -660,5 +666,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             mu_end_window(mu_ctx);
         }
     }
+
     mu_end(mu_ctx);
 }

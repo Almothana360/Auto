@@ -27,6 +27,8 @@ add_executable(Auto src/main.c
         src/project_io.c
         src/render_utils.c
         src/microui.c
-        src/tween.c)
+        src/tween.c
+        src/flange.c
+        src/cad_pid.c)
 target_link_options(Auto PRIVATE "SHELL:-Wl,--stack,16777216")
 target_link_libraries(Auto raylib m winmm)

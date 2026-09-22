@@ -5,11 +5,13 @@
 #include "gui_panels.h"
 #include "gui_panels_raygui.h"
 #include "render_utils.h"
+#include "cad_pid.h"
 
 void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
     mu_init(mu_ctx);
     mu_ctx->text_width = TextWidthCallback;
     mu_ctx->text_height = TextHeightCallback;
+
     Font bodyFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_BODY);
     SetActiveUIFont(bodyFont);
     GuiSetFont(bodyFont);
@@ -19,6 +21,7 @@ void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
 
 void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
     if (app->uiConfig.uiBackend != UI_BACKEND_MICROUI) return;
+
     Vector2 mousePos = GetMousePosition();
     mu_input_mousemove(mu_ctx, (int)mousePos.x, (int)mousePos.y);
 
@@ -29,6 +32,7 @@ void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
 
     int btnMap[3] = { MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE };
     int muBtnMap[3] = { MU_MOUSE_LEFT, MU_MOUSE_RIGHT, MU_MOUSE_MIDDLE };
+
     for (int b = 0; b < 3; b++) {
         if (IsMouseButtonPressed(btnMap[b])) mu_input_mousedown(mu_ctx, (int)mousePos.x, (int)mousePos.y, muBtnMap[b]);
         if (IsMouseButtonReleased(btnMap[b])) mu_input_mouseup(mu_ctx, (int)mousePos.x, (int)mousePos.y, muBtnMap[b]);
@@ -43,6 +47,7 @@ void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
             }
             charCode = GetCharPressed();
         }
+
         if (IsKeyPressed(KEY_BACKSPACE)) mu_input_keydown(mu_ctx, MU_KEY_BACKSPACE);
         if (IsKeyReleased(KEY_BACKSPACE)) mu_input_keyup(mu_ctx, MU_KEY_BACKSPACE);
         if (IsKeyPressed(KEY_ENTER) || IsKeyPressed(KEY_KP_ENTER)) mu_input_keydown(mu_ctx, MU_KEY_RETURN);
@@ -53,9 +58,13 @@ void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
 bool UIManager_UpdateAndRenderPanels(AppContext *app, mu_Context *mu_ctx) {
     bool overUI = false;
     Vector2 mousePos = GetMousePosition();
-
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
+
+    if (app->cadPid.isPaletteOpen) {
+        return true;
+    }
+
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
@@ -94,6 +103,7 @@ void UIManager_RenderOverlays(AppContext *app, mu_Context *mu_ctx) {
         if (g_CADState.activeTool != TOOL_PAN) {
             DrawRectangle(0, 0, winW, (int)menuBarHeight, barBg);
             DrawLine(0, (int)menuBarHeight, winW, (int)menuBarHeight, barBorder);
+
             if (app->uiAnim.hudProgress > 0.01f) {
                 float hudY = (float)winH - (bottomStripH * app->uiAnim.hudProgress);
                 DrawRectangle(0, (int)hudY, winW, (int)bottomStripH, barBg);
@@ -106,9 +116,14 @@ void UIManager_RenderOverlays(AppContext *app, mu_Context *mu_ctx) {
         RenderAllGuiPanels_Raygui(app);
     }
 
+    // Render P&ID Circular Palette overlay
+    Font menuFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_MENU);
+    CAD_PID_RenderPalette(&app->cadPid, app->uiScale, menuFont);
+
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
     Rectangle commandBoxRect = { ((float)winW - cmdW) / 2.0f, (float)winH - bottomStripH - cmdH - (4.0f * app->uiScale), cmdW, cmdH };
+
     if (g_CADState.activeTool != TOOL_PAN) {
         DrawRectangleRec(commandBoxRect, (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 252, 252, 252, 255 } : (Color){ 32, 32, 32, 255 });
         DrawRectangleLinesEx(commandBoxRect, 1.0f, barBorder);

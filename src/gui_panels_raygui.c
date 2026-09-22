@@ -3,6 +3,7 @@
 #include "project_io.h"
 #include "layer.h"
 #include "cad_math.h"
+#include "cad_pid.h"
 #include "raygui.h"
 #include <stdio.h>
 #include <string.h>
@@ -114,15 +115,19 @@ bool CheckGuiHover_Raygui(AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
     Vector2 mousePos = GetMousePosition();
+
+    if (app->cadPid.isPaletteOpen) return true;
+
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
     float leftDockW = 320.0f * app->uiScale;
     float rightDockW = 290.0f * app->uiScale;
     float dockH = (float)winH - menuBarHeight - bottomStripH;
+
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
-
     Rectangle commandBoxRect = { ((float)winW - cmdW) / 2.0f, (float)winH - bottomStripH - cmdH - (4.0f * app->uiScale), cmdW, cmdH };
+
     if (CheckCollisionPointRec(mousePos, commandBoxRect)) return true;
     if (CheckCollisionPointRec(mousePos, (Rectangle){ 0, 0, (float)winW, menuBarHeight })) return true;
 
@@ -149,10 +154,12 @@ bool CheckGuiHover_Raygui(AppContext *app) {
         Rectangle modalUnitRect = { (winW - 300.0f * app->uiScale) / 2.0f, (winH - 240.0f * app->uiScale) / 2.0f, 300.0f * app->uiScale, 240.0f * app->uiScale };
         if (CheckCollisionPointRec(mousePos, modalUnitRect)) return true;
     }
+
     if (app->showScaleWindow) {
         Rectangle modalScaleRect = { (winW - 300.0f * app->uiScale) / 2.0f, (winH - 200.0f * app->uiScale) / 2.0f, 300.0f * app->uiScale, 200.0f * app->uiScale };
         if (CheckCollisionPointRec(mousePos, modalScaleRect)) return true;
     }
+
     if (app->uiAnim.contextMenuProgress > 0.01f) {
         float ctxWidth = 180.0f * app->uiScale;
         float ctxHeight = (210.0f * app->uiScale) * app->uiAnim.contextMenuProgress;
@@ -372,8 +379,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         float elRowY = elemsBox.y + 26.0f * app->uiScale;
         int maxVisibleElems = (int)((elemsBox.height - 30.0f * app->uiScale) / (itemH + 2.0f));
         if (maxVisibleElems < 1) maxVisibleElems = 1;
-        bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
 
+        bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
         for (int i = 0; i < app->elementCount && i < maxVisibleElems; i++) {
             const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rect" :
                                   (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" :
@@ -382,8 +389,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                   (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" :
                                   (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" :
                                   (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" :
-                                  (app->elements[i].type == ELEMENT_LINE ? "Pipe/Line" :
-                                  (app->elements[i].type == ELEMENT_SYMBOL ? "Symbol" : "Dim"))))))));
+                                  (app->elements[i].type == ELEMENT_LINE ? "Line" :
+                                  (app->elements[i].type == ELEMENT_SYMBOL ? "Symbol/Inst" : "Dim"))))))));
             const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
             char itemLabel[64];
             snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
@@ -399,7 +406,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
     // 3. Animated Right Dock (Inspector)
     int selectedCount = CountSelectedElements(app->elements, app->elementCount);
     int selectedElementIndex = GetFirstSelectedIndex(app->elements, app->elementCount);
-
     if (!app->showRightDock && app->uiAnim.rightDockProgress <= 0.05f) {
         Rectangle rToggleRect = { winW - 32.0f * app->uiScale, dockY + 4, 28.0f * app->uiScale, 24.0f * app->uiScale };
         DrawRectangleRec(rToggleRect, pBg);
@@ -434,8 +440,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                 (el->type == ELEMENT_TEXT_NOTE ? "Type: Text Note" :
                                 (el->type == ELEMENT_POLYLINE ? "Type: Polyline" :
                                 (el->type == ELEMENT_FREEHAND ? "Type: Freehand" :
-                                (el->type == ELEMENT_LINE ? "Type: Pipe / Line" :
-                                (el->type == ELEMENT_SYMBOL ? "Type: Flange / Symbol" : "Type: Dimension"))))))));
+                                (el->type == ELEMENT_LINE ? "Type: Line" :
+                                (el->type == ELEMENT_SYMBOL ? "Type: Symbol / Inst" : "Type: Dimension"))))))));
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, title); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Entity ID: %u", el->id)); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y)); inspY += btnH;
@@ -466,7 +472,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                 }
             }
-
             if (GuiButton((Rectangle){ inspX + (inspW - spacing) / 2.0f + spacing, inspY, (inspW - spacing) / 2.0f, btnH }, "Send Backmost")) {
                 int targetLayer = el->layerIndex;
                 int firstSameLayerIdx = -1;
@@ -577,7 +582,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 }
             }
             inspY += (btnH + spacing) * 2;
-
             if (el->useCustomColor && GuiButton((Rectangle){ inspX, inspY, inspW, btnH }, "Reset to Layer Color")) {
                 Command cmd = { 0 };
                 cmd.type = CMD_TRANSFORM;
@@ -632,8 +636,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         sX += 105.0f * app->uiScale;
 
         const char *toolName = "Select";
-        if (g_CADState.activeTool == TOOL_DRAW_PIPE) toolName = (app->dimStep == 0) ? "Pipe (Start)" : "Pipe (End)";
-        else if (g_CADState.activeTool == TOOL_PLACE_FLANGE) toolName = "Place Flange";
+        if (app->cadPid.isPlacingInstrument) toolName = "P&ID Insert";
         else if (g_CADState.activeTool == TOOL_ADD_RECT) toolName = "Add Rect";
         else if (g_CADState.activeTool == TOOL_ADD_CIRCLE) toolName = "Add Circle";
         else if (g_CADState.activeTool == TOOL_ADD_ELLIPSE) toolName = "Add Ellipse";
@@ -647,7 +650,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
 
         GuiLabel((Rectangle){ sX, sY, 150.0f * app->uiScale, sH }, TextFormat("Tool: %s", toolName));
         sX += 155.0f * app->uiScale;
-
         GuiLabel((Rectangle){ sX, sY, 160.0f * app->uiScale, sH }, TextFormat("Elements: %d (Sel: %d)", app->elementCount, CountSelectedElements(app->elements, app->elementCount)));
     }
 
@@ -709,7 +711,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         DrawRectangleRec(ctxMenuRect, Fade(pBg, app->uiAnim.contextMenuProgress));
         DrawRectangleLinesEx(ctxMenuRect, 1.0f, Fade(pBorder, app->uiAnim.contextMenuProgress));
 
-        // Scissor clip for smooth unfolding
         BeginScissorMode((int)ctxMenuRect.x, (int)ctxMenuRect.y, (int)ctxMenuRect.width, (int)ctxMenuRect.height);
 
         float cX = ctxMenuRect.x + 4.0f * app->uiScale;
@@ -797,14 +798,15 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             }
         } else {
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Select Mode")) { g_CADState.activeTool = TOOL_SELECT; app->showContextMenu = false; } cY += cH + 2;
-            if (GuiButton((Rectangle){ cX, cY, cW, cH }, "+ Draw Pipe")) { g_CADState.activeTool = TOOL_DRAW_PIPE; app->dimStep = 0; app->showContextMenu = false; } cY += cH + 2;
-            if (GuiButton((Rectangle){ cX, cY, cW, cH }, "+ Place Flange")) { g_CADState.activeTool = TOOL_PLACE_FLANGE; app->showContextMenu = false; } cY += cH + 2;
+            if (GuiButton((Rectangle){ cX, cY, cW, cH }, "P&ID Palette")) {
+                CAD_PID_OpenPalette(&app->cadPid, app->contextMenuPos);
+                app->showContextMenu = false;
+            } cY += cH + 2;
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "+ Add Rectangle")) { g_CADState.activeTool = TOOL_ADD_RECT; app->showContextMenu = false; } cY += cH + 2;
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "+ Add Circle")) { g_CADState.activeTool = TOOL_ADD_CIRCLE; app->showContextMenu = false; } cY += cH + 2;
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Deselect Elements")) { DeselectAllElements(app->elements, app->elementCount); app->showContextMenu = false; } cY += cH + 2;
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Reset View")) { DispatchCommand(app, "reset"); app->showContextMenu = false; }
         }
-
         EndScissorMode();
     }
 
@@ -819,7 +821,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Save Project")) { DispatchCommand(app, "save"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Exit")) { DispatchCommand(app, "exit"); CloseAllPopups(app); }
     }
-
     if (app->openEditMenu) {
         Rectangle pop = { (4.0f + 68.0f + 4.0f) * app->uiScale, menuBarHeight, 130.0f * app->uiScale, 2 * (btnH + 2) + 6 };
         DrawRectangleRec(pop, pBg);
@@ -828,7 +829,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Undo")) { DispatchCommand(app, "undo"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Redo")) { DispatchCommand(app, "redo"); CloseAllPopups(app); }
     }
-
     if (app->openWindowMenu) {
         Rectangle pop = { (4.0f + (68.0f + 4.0f) * 2) * app->uiScale, menuBarHeight, 225.0f * app->uiScale, 11 * (btnH + 2) + 8 };
         DrawRectangleRec(pop, pBg);
@@ -885,15 +885,16 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             CloseAllPopups(app);
         }
     }
-
     if (app->openElementMenu) {
-        Rectangle pop = { (4.0f + (68.0f + 4.0f) * 2 + 83.0f * app->uiScale), menuBarHeight, 170.0f * app->uiScale, 12 * (btnH + 2) + 6 };
+        Rectangle pop = { (4.0f + (68.0f + 4.0f) * 2 + 83.0f * app->uiScale), menuBarHeight, 170.0f * app->uiScale, 11 * (btnH + 2) + 6 };
         DrawRectangleRec(pop, pBg);
         DrawRectangleLinesEx(pop, 1.0f, pBorder);
         float py = pop.y + 3;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Select Tool"))    { DispatchCommand(app, "select"); CloseAllPopups(app); } py += btnH + 2;
-        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Draw Pipe"))      { DispatchCommand(app, "pipe"); CloseAllPopups(app); } py += btnH + 2;
-        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Place Flange"))   { DispatchCommand(app, "flange"); CloseAllPopups(app); } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "P&ID Circular Palate")) {
+            CAD_PID_OpenPalette(&app->cadPid, (Vector2){ (float)winW * 0.5f, (float)winH * 0.5f });
+            CloseAllPopups(app);
+        } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Add Rectangle"))  { DispatchCommand(app, "rect"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Add Circle"))     { DispatchCommand(app, "circle"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Add Line"))       { DispatchCommand(app, "line"); CloseAllPopups(app); } py += btnH + 2;
@@ -904,7 +905,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Add Text Note"))  { DispatchCommand(app, "text"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Clear Elements")) { DispatchCommand(app, "clear"); CloseAllPopups(app); }
     }
-
     if (app->openFunctionsMenu) {
         Rectangle pop = { (4.0f + (68.0f + 4.0f) * 2 + (83.0f + 83.0f) * app->uiScale), menuBarHeight, 140.0f * app->uiScale, 2 * (btnH + 2) + 6 };
         DrawRectangleRec(pop, pBg);
@@ -914,7 +914,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Pan Mode"))  { DispatchCommand(app, "pan"); CloseAllPopups(app); }
     }
 
-    // Outside clicks
     if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT) && !CheckGuiHover_Raygui(app) && !clickedTopMenuButton) {
         CloseAllPopups(app);
         app->layerRenameEditMode = false;

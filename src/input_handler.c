@@ -2,12 +2,12 @@
 #include "console_cmd.h"
 #include "project_io.h"
 #include "commands.h"
+#include "cad_pid.h"
 #include <stdio.h>
 #include <stdlib.h>
 
 void HandleGlobalInput(AppContext *app, mu_Context *mu_ctx) {
     bool isTextInputActive = app->commandEditMode;
-
     if (app->uiConfig.uiBackend == UI_BACKEND_MICROUI && mu_ctx) {
         isTextInputActive = isTextInputActive || (mu_ctx->focus != 0) || (mu_ctx->number_edit != 0);
     } else {
@@ -54,21 +54,15 @@ void HandleGlobalInput(AppContext *app, mu_Context *mu_ctx) {
             snprintf(app->statusMessage, sizeof(app->statusMessage), "Tool: Click to place Circle");
             app->statusMessageTimer = 2.0f;
         }
+        else if (IsKeyPressed(KEY_P) && !IsKeyDown(KEY_LEFT_CONTROL) && !IsKeyDown(KEY_RIGHT_CONTROL) && g_CADState.activeTool != TOOL_PAN) {
+            CAD_PID_OpenPalette(&app->cadPid, g_CADState.mouseScreen);
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "Tool: P&ID Circular Palate");
+            app->statusMessageTimer = 2.0f;
+        }
         else if (IsKeyPressed(KEY_L) && g_CADState.activeTool != TOOL_PAN) {
-            g_CADState.activeTool = TOOL_DRAW_PIPE;
+            g_CADState.activeTool = TOOL_ADD_LINE;
             app->dimStep = 0;
-            snprintf(app->statusMessage, sizeof(app->statusMessage), "Tool: Draw Pipe");
-            app->statusMessageTimer = 2.0f;
-        }
-        else if (IsKeyPressed(KEY_F) && g_CADState.activeTool != TOOL_PAN) {
-            g_CADState.activeTool = TOOL_PLACE_FLANGE;
-            snprintf(app->statusMessage, sizeof(app->statusMessage), "Tool: Place Flange");
-            app->statusMessageTimer = 2.0f;
-        }
-        else if (IsKeyPressed(KEY_P) && g_CADState.activeTool != TOOL_PAN) {
-            g_CADState.activeTool = TOOL_ADD_POLYLINE;
-            app->dimStep = 0;
-            snprintf(app->statusMessage, sizeof(app->statusMessage), "Tool: Polyline (Click Points)");
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "Tool: Line");
             app->statusMessageTimer = 2.0f;
         }
         else if (IsKeyPressed(KEY_A) && g_CADState.activeTool != TOOL_PAN) {
@@ -93,6 +87,8 @@ void HandleGlobalInput(AppContext *app, mu_Context *mu_ctx) {
             g_CADState.activeTool = TOOL_SELECT;
             DeselectAllElements(app->elements, app->elementCount);
             app->showContextMenu = false;
+            CAD_PID_ClosePalette(&app->cadPid);
+            app->cadPid.isPlacingInstrument = false;
             app->dimStep = 0;
             app->isBoxSelecting = false;
             app->showScaleWindow = false;

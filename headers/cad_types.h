@@ -7,23 +7,29 @@
 #define SCREEN_WIDTH 1600
 #define SCREEN_HEIGHT 1200
 #define SCREEN_TITLE "Piping Cad Studio"
+
 #define MAX_ELEMENTS 32768
 #define MAX_LAYERS 16
 #define LAYER_NAME_LEN 32
+
 #define LEGACY_PROJECT_FILENAME "project.dat"
 #define PROJECT_FILENAME "project.json"
 #define CONFIG_FILENAME "config.ini"
+
 #define CMD_BUFFER_SIZE 128
 #define MAX_POLYLINE_POINTS 128
 #define TEXT_NOTE_LEN 128
+
 #define CURRENT_SCHEMA_VERSION 3
 #define HANDLE_SIZE_PX 8.0f
 #define ROTATION_HANDLE_OFFSET 30.0f
 #define MIN_ELEMENT_SIZE 2.0f
+
 #define QUADTREE_MAX_DEPTH 8
 #define QUADTREE_NODE_CAPACITY 16
 #define QUADTREE_MAX_NODES 16384
 #define SPATIAL_WORLD_EXTENT 200000.0f
+
 #define MAX_COMMAND_HISTORY 1024
 
 typedef enum {
@@ -41,7 +47,13 @@ typedef enum {
 
 typedef ElementType CADEntityType;
 
-typedef enum { UNIT_MM, UNIT_CM, UNIT_M, UNIT_IN, UNIT_FT } MeasureUnit;
+typedef enum {
+    UNIT_MM,
+    UNIT_CM,
+    UNIT_M,
+    UNIT_IN,
+    UNIT_FT
+} MeasureUnit;
 
 typedef enum {
     UI_BACKEND_MICROUI = 0,
@@ -55,8 +67,7 @@ typedef enum {
 
 typedef enum {
     TOOL_SELECT = 0,
-    TOOL_DRAW_PIPE,
-    TOOL_PLACE_FLANGE,
+    TOOL_PID_PALETTE,
     TOOL_ADD_RECT,
     TOOL_ADD_CIRCLE,
     TOOL_DIMENSION,
@@ -187,8 +198,8 @@ typedef struct {
     bool snapToGrid;
     bool snapEnabled;
     int currentUnit;
-    int uiBackend;  // 0 = MicroUI, 1 = Raygui
-    int uiTheme;    // 0 = Dark, 1 = Light
+    int uiBackend;
+    int uiTheme;
 } UiConfig;
 
 unsigned int GenerateEntityID(void);

@@ -17,18 +17,20 @@ static void TrimString(char *str) {
 }
 
 void ProcessCommand(const char *cmdStr, GridElement *elements, int *elementCount, 
-                    Layer *layers, int *layerCount, int *activeLayerIndex, 
-                    CADTool *currentTool, Camera2D *camera, bool *showHudPanel, 
-                    bool *showInspector, bool *showLayersPanel, bool *showElementsPanel, 
-                    float *uiScale, char *statusMessage, float *statusMessageTimer, 
-                    int *dimStep, CommandHistory *cmdHistory, bool *spatialIndexDirty, 
-                    MeasureUnit currentUnit) {
+                     Layer *layers, int *layerCount, int *activeLayerIndex,
+                     CADTool *currentTool, Camera2D *camera, bool *showHudPanel,
+                     bool *showInspector, bool *showLayersPanel, bool *showElementsPanel,
+                     float *uiScale, char *statusMessage, float *statusMessageTimer,
+                     int *dimStep, CommandHistory *cmdHistory, bool *spatialIndexDirty,
+                     MeasureUnit currentUnit) {
     (void)uiScale;
     (void)currentUnit;
+
     char buf[CMD_BUFFER_SIZE];
     strncpy(buf, cmdStr, sizeof(buf) - 1);
     buf[sizeof(buf) - 1] = '\0';
     TrimString(buf);
+
     char *cmdPtr = buf;
     if (cmdPtr[0] == '/') { cmdPtr++; TrimString(cmdPtr); }
     if (strlen(cmdPtr) == 0) return;
@@ -57,7 +59,8 @@ void ProcessCommand(const char *cmdStr, GridElement *elements, int *elementCount
         for (int l = 0; l < *layerCount; l++) Layer_Copy(&snapCmd.data.snapshot.after.layers[l], &layers[l]);
 
         ExecuteCommand(cmdHistory, snapCmd, elements, elementCount, layers, layerCount, spatialIndexDirty);
-        snprintf(statusMessage, 64, "Created New Project"); *statusMessageTimer = 2.0f;
+        snprintf(statusMessage, 64, "Created New Project");
+        *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "open")) {
         Command snapCmd = { 0 };
         snapCmd.type = CMD_SNAPSHOT;
@@ -88,7 +91,8 @@ void ProcessCommand(const char *cmdStr, GridElement *elements, int *elementCount
         *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "save")) {
         SaveProject(PROJECT_FILENAME, elements, *elementCount, layers, *layerCount);
-        snprintf(statusMessage, 64, "Project Saved (JSON) Successfully!"); *statusMessageTimer = 2.0f;
+        snprintf(statusMessage, 64, "Project Saved (JSON) Successfully!");
+        *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "undo")) {
         if (History_Undo(cmdHistory, elements, elementCount, layers, layerCount, spatialIndexDirty)) {
             snprintf(statusMessage, 64, "Undo Performed");
@@ -105,7 +109,8 @@ void ProcessCommand(const char *cmdStr, GridElement *elements, int *elementCount
         camera->target = (Vector2){ 0.0f, 0.0f };
         camera->offset = (Vector2){ (float)GetScreenWidth() / 2.0f, (float)GetScreenHeight() / 2.0f };
         camera->zoom = 1.0f;
-        snprintf(statusMessage, 64, "View Reset"); *statusMessageTimer = 1.5f;
+        snprintf(statusMessage, 64, "View Reset");
+        *statusMessageTimer = 1.5f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "fullscreen")) {
         ToggleFullscreen();
     } else if (StringEqualsIgnoreCase(cmdPtr, "toggle hud") || StringEqualsIgnoreCase(cmdPtr, "hud")) {
@@ -117,31 +122,70 @@ void ProcessCommand(const char *cmdStr, GridElement *elements, int *elementCount
     } else if (StringEqualsIgnoreCase(cmdPtr, "toggle elements") || StringEqualsIgnoreCase(cmdPtr, "elements")) {
         *showElementsPanel = !(*showElementsPanel);
     } else if (StringEqualsIgnoreCase(cmdPtr, "select") || StringEqualsIgnoreCase(cmdPtr, "sel")) {
-        *currentTool = TOOL_SELECT; g_CADState.activeTool = TOOL_SELECT; snprintf(statusMessage, 64, "Tool: Select & Transform"); *statusMessageTimer = 2.0f;
-    } else if (StringEqualsIgnoreCase(cmdPtr, "pipe") || StringEqualsIgnoreCase(cmdPtr, "draw pipe")) {
-        *currentTool = TOOL_DRAW_PIPE; g_CADState.activeTool = TOOL_DRAW_PIPE; *dimStep = 0; snprintf(statusMessage, 64, "Tool: Draw Pipe (Click Start Point)"); *statusMessageTimer = 2.5f;
-    } else if (StringEqualsIgnoreCase(cmdPtr, "flange") || StringEqualsIgnoreCase(cmdPtr, "place flange")) {
-        *currentTool = TOOL_PLACE_FLANGE; g_CADState.activeTool = TOOL_PLACE_FLANGE; snprintf(statusMessage, 64, "Tool: Place Flange Symbol"); *statusMessageTimer = 2.5f;
+        *currentTool = TOOL_SELECT;
+        g_CADState.activeTool = TOOL_SELECT;
+        snprintf(statusMessage, 64, "Tool: Select & Transform");
+        *statusMessageTimer = 2.0f;
+    } else if (StringEqualsIgnoreCase(cmdPtr, "pid") || StringEqualsIgnoreCase(cmdPtr, "p&id")) {
+        *currentTool = TOOL_PID_PALETTE;
+        g_CADState.activeTool = TOOL_PID_PALETTE;
+        snprintf(statusMessage, 64, "Tool: P&ID Circular Palette");
+        *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "add rect") || StringEqualsIgnoreCase(cmdPtr, "rect") || StringEqualsIgnoreCase(cmdPtr, "r")) {
-        *currentTool = TOOL_ADD_RECT; g_CADState.activeTool = TOOL_ADD_RECT; snprintf(statusMessage, 64, "Tool: Click to place Rectangle"); *statusMessageTimer = 2.0f;
+        *currentTool = TOOL_ADD_RECT;
+        g_CADState.activeTool = TOOL_ADD_RECT;
+        snprintf(statusMessage, 64, "Tool: Click to place Rectangle");
+        *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "add circle") || StringEqualsIgnoreCase(cmdPtr, "circle") || StringEqualsIgnoreCase(cmdPtr, "c")) {
-        *currentTool = TOOL_ADD_CIRCLE; g_CADState.activeTool = TOOL_ADD_CIRCLE; snprintf(statusMessage, 64, "Tool: Click to place Circle"); *statusMessageTimer = 2.0f;
+        *currentTool = TOOL_ADD_CIRCLE;
+        g_CADState.activeTool = TOOL_ADD_CIRCLE;
+        snprintf(statusMessage, 64, "Tool: Click to place Circle");
+        *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "polyline") || StringEqualsIgnoreCase(cmdPtr, "pline")) {
-        *currentTool = TOOL_ADD_POLYLINE; g_CADState.activeTool = TOOL_ADD_POLYLINE; *dimStep = 0; snprintf(statusMessage, 64, "Polyline: Click Points (Right-Click End)"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_ADD_POLYLINE;
+        g_CADState.activeTool = TOOL_ADD_POLYLINE;
+        *dimStep = 0;
+        snprintf(statusMessage, 64, "Polyline: Click Points (Right-Click End)");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "freehand") || StringEqualsIgnoreCase(cmdPtr, "draw")) {
-        *currentTool = TOOL_ADD_FREEHAND; g_CADState.activeTool = TOOL_ADD_FREEHAND; snprintf(statusMessage, 64, "Freehand: Drag to Draw"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_ADD_FREEHAND;
+        g_CADState.activeTool = TOOL_ADD_FREEHAND;
+        snprintf(statusMessage, 64, "Freehand: Drag to Draw");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "arc")) {
-        *currentTool = TOOL_ADD_ARC; g_CADState.activeTool = TOOL_ADD_ARC; *dimStep = 0; snprintf(statusMessage, 64, "3-Pt Arc: Click 1st Point"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_ADD_ARC;
+        g_CADState.activeTool = TOOL_ADD_ARC;
+        *dimStep = 0;
+        snprintf(statusMessage, 64, "3-Pt Arc: Click 1st Point");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "ellipse")) {
-        *currentTool = TOOL_ADD_ELLIPSE; g_CADState.activeTool = TOOL_ADD_ELLIPSE; snprintf(statusMessage, 64, "Ellipse: Click Center Position"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_ADD_ELLIPSE;
+        g_CADState.activeTool = TOOL_ADD_ELLIPSE;
+        snprintf(statusMessage, 64, "Ellipse: Click Center Position");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "text") || StringEqualsIgnoreCase(cmdPtr, "note")) {
-        *currentTool = TOOL_ADD_TEXT_NOTE; g_CADState.activeTool = TOOL_ADD_TEXT_NOTE; *dimStep = 0; snprintf(statusMessage, 64, "Text Note: Click Box Position"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_ADD_TEXT_NOTE;
+        g_CADState.activeTool = TOOL_ADD_TEXT_NOTE;
+        *dimStep = 0;
+        snprintf(statusMessage, 64, "Text Note: Click Box Position");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "line") || StringEqualsIgnoreCase(cmdPtr, "l")) {
-        *currentTool = TOOL_ADD_LINE; g_CADState.activeTool = TOOL_ADD_LINE; *dimStep = 0; snprintf(statusMessage, 64, "Line: Click 1st Point"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_ADD_LINE;
+        g_CADState.activeTool = TOOL_ADD_LINE;
+        *dimStep = 0;
+        snprintf(statusMessage, 64, "Line: Click 1st Point");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "dimension") || StringEqualsIgnoreCase(cmdPtr, "dim")) {
-        *currentTool = TOOL_DIMENSION; g_CADState.activeTool = TOOL_DIMENSION; *dimStep = 0; snprintf(statusMessage, 64, "Dimension: Click 1st Point"); *statusMessageTimer = 3.0f;
+        *currentTool = TOOL_DIMENSION;
+        g_CADState.activeTool = TOOL_DIMENSION;
+        *dimStep = 0;
+        snprintf(statusMessage, 64, "Dimension: Click 1st Point");
+        *statusMessageTimer = 3.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "pan")) {
-        *currentTool = TOOL_PAN; g_CADState.activeTool = TOOL_PAN; snprintf(statusMessage, 64, "Pan Mode: ON"); *statusMessageTimer = 2.0f;
+        *currentTool = TOOL_PAN;
+        g_CADState.activeTool = TOOL_PAN;
+        snprintf(statusMessage, 64, "Pan Mode: ON");
+        *statusMessageTimer = 2.0f;
     } else if (StringEqualsIgnoreCase(cmdPtr, "clear") || StringEqualsIgnoreCase(cmdPtr, "clear elements")) {
         if (*elementCount > 0) {
             Command batchDel = { 0 };
@@ -156,9 +200,11 @@ void ProcessCommand(const char *cmdStr, GridElement *elements, int *elementCount
             DeselectAllElements(elements, *elementCount);
             *currentTool = TOOL_SELECT;
             g_CADState.activeTool = TOOL_SELECT;
-            snprintf(statusMessage, 64, "All Elements Cleared"); *statusMessageTimer = 2.0f;
+            snprintf(statusMessage, 64, "All Elements Cleared");
+            *statusMessageTimer = 2.0f;
         }
     } else {
-        snprintf(statusMessage, 64, "Unknown Command: %s", cmdPtr); *statusMessageTimer = 2.5f;
+        snprintf(statusMessage, 64, "Unknown Command: %s", cmdPtr);
+        *statusMessageTimer = 2.5f;
     }
 }
