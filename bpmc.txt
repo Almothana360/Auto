@@ -1,0 +1,8 @@
+Following the previous, How can we split the cad_editor.c to minimize the change that happens to the program when altering one aspect of it?
+
+Please provide each file for the fix in full code, with the fix without altering any existing code and systems.
+
+Following the previous, cannot we just split the file into modules like a camera module that has all the functions associated with the camera handling and other modules with the same idea.
+
+Please provide each file for the fix in full code, with the fix without altering any existing code and systems.
+
