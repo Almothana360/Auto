@@ -38,6 +38,10 @@ void ApplyMicroUiTheme(mu_Context *ctx, int theme) {
         ctx->style->colors[MU_COLOR_SCROLLBASE]  = mu_color(40, 40, 40, 255);
         ctx->style->colors[MU_COLOR_SCROLLTHUMB] = mu_color(30, 30, 30, 255);
     }
+
+    // Apply smoothly tweened theme colors
+    ctx->style->colors[MU_COLOR_PANELBG]  = mu_color((int)ctx->style->colors[MU_COLOR_PANELBG].r, (int)ctx->style->colors[MU_COLOR_PANELBG].g, (int)ctx->style->colors[MU_COLOR_PANELBG].b, 255);
+    ctx->style->colors[MU_COLOR_WINDOWBG] = mu_color((int)ctx->style->colors[MU_COLOR_WINDOWBG].r, (int)ctx->style->colors[MU_COLOR_WINDOWBG].g, (int)ctx->style->colors[MU_COLOR_WINDOWBG].b, 255);
 }
 
 void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
@@ -52,7 +56,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
     float rightDockW = 290.0f * app->uiScale;
 
     ApplyMicroUiTheme(mu_ctx, app->uiConfig.uiTheme);
-
     mu_ctx->style->font = (mu_Font)(intptr_t)(int)(12 * app->uiScale);
     mu_ctx->style->size = mu_vec2((int)(68 * app->uiScale), (int)(24 * app->uiScale));
     mu_ctx->style->padding = (int)(3 * app->uiScale);
@@ -173,7 +176,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
         }
 
         // Left Toggle Icon / Button when hidden
-        if (!app->showLeftDock) {
+        if (!app->showLeftDock && app->uiAnim.leftDockProgress <= 0.05f) {
             mu_Rect lToggleRect = mu_rect(4, (int)dockY + 4, (int)(28 * app->uiScale), (int)(24 * app->uiScale));
             mu_Container *ltWin = mu_get_container(mu_ctx, "##LeftShow");
             if (ltWin) ltWin->rect = lToggleRect;
@@ -184,15 +187,18 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             }
         }
 
-        // 2. Unified Left Dock
-        if (app->showLeftDock) {
-            mu_Rect lDockRect = mu_rect(0, (int)dockY, (int)leftDockW, (int)dockH);
+        // 2. Animated Unified Left Dock
+        if (app->uiAnim.leftDockProgress > 0.01f) {
+            float curLeftW = leftDockW * app->uiAnim.leftDockProgress;
+            float curLeftX = -leftDockW * (1.0f - app->uiAnim.leftDockProgress);
+            mu_Rect lDockRect = mu_rect((int)curLeftX, (int)dockY, (int)leftDockW, (int)dockH);
             mu_Container *ldWin = mu_get_container(mu_ctx, "Project Tree");
             if (ldWin) ldWin->rect = lDockRect;
             if (mu_begin_window_ex(mu_ctx, "Project Tree", lDockRect, MU_OPT_NORESIZE | MU_OPT_NOSCROLL)) {
                 mu_layout_row(mu_ctx, 2, (int[]){ -36, -1 }, (int)(22 * app->uiScale));
                 mu_text(mu_ctx, "Project Workspace");
                 if (mu_button(mu_ctx, "<")) { app->showLeftDock = false; }
+
                 float availableH = dockH - (44.0f * app->uiScale);
                 int halfHeight = (int)(availableH * 0.5f) - (int)(4.0f * app->uiScale);
                 if (halfHeight < 60) halfHeight = 60;
@@ -214,6 +220,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             app->layerCount++;
                         }
                     }
+
                     int lCols[] = { (int)(18 * app->uiScale), (int)(18 * app->uiScale), (int)(18 * app->uiScale), (int)(18 * app->uiScale), (int)(18 * app->uiScale), (int)(18 * app->uiScale), (int)(22 * app->uiScale), -1 };
                     for (int i = 0; i < app->layerCount; i++) {
                         mu_push_id(mu_ctx, &app->layers[i], sizeof(Layer*));
@@ -246,6 +253,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         mu_text(mu_ctx, TextFormat("[%u] %s (%d)", app->layers[i].id, app->layers[i].name, app->layers[i].entityCount));
                         mu_pop_id(mu_ctx);
                     }
+
                     mu_layout_row(mu_ctx, 2, (int[]){ (int)(70 * app->uiScale), -1 }, (int)(20 * app->uiScale));
                     mu_label(mu_ctx, "Rename:");
                     if (mu_textbox(mu_ctx, app->layerNameEditBuf, sizeof(app->layerNameEditBuf)) & MU_RES_SUBMIT) {
@@ -285,7 +293,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
         }
 
         // Right Toggle Icon / Button when hidden
-        if (!app->showRightDock) {
+        if (!app->showRightDock && app->uiAnim.rightDockProgress <= 0.05f) {
             mu_Rect rToggleRect = mu_rect(winW - (int)(32 * app->uiScale), (int)dockY + 4, (int)(28 * app->uiScale), (int)(24 * app->uiScale));
             mu_Container *rtWin = mu_get_container(mu_ctx, "##RightShow");
             if (rtWin) rtWin->rect = rToggleRect;
@@ -296,17 +304,19 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             }
         }
 
-        // 3. Docked Right Panel (Inspector)
+        // 3. Animated Docked Right Panel (Inspector)
         int selectedCount = CountSelectedElements(app->elements, app->elementCount);
         int selectedElementIndex = GetFirstSelectedIndex(app->elements, app->elementCount);
-        if (app->showRightDock) {
-            mu_Rect insRect = mu_rect(winW - (int)rightDockW, (int)dockY, (int)rightDockW, (int)dockH);
+        if (app->uiAnim.rightDockProgress > 0.01f) {
+            float curRightX = (float)winW - (rightDockW * app->uiAnim.rightDockProgress);
+            mu_Rect insRect = mu_rect((int)curRightX, (int)dockY, (int)rightDockW, (int)dockH);
             mu_Container *inWin = mu_get_container(mu_ctx, "Inspector");
             if (inWin) inWin->rect = insRect;
             if (mu_begin_window_ex(mu_ctx, "Inspector", insRect, MU_OPT_NORESIZE)) {
                 mu_layout_row(mu_ctx, 2, (int[]){ -36, -1 }, (int)(22 * app->uiScale));
                 mu_text(mu_ctx, "Properties");
                 if (mu_button(mu_ctx, ">")) { app->showRightDock = false; }
+
                 if (selectedCount > 0 && selectedElementIndex >= 0) {
                     GridElement *el = &app->elements[selectedElementIndex];
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
@@ -316,6 +326,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     mu_text(mu_ctx, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y));
                     mu_text(mu_ctx, TextFormat("BBox: [%.0f,%.0f] to [%.0f,%.0f]", el->bbox.min.x, el->bbox.min.y, el->bbox.max.x, el->bbox.max.y));
                     mu_text(mu_ctx, TextFormat("Assigned: [%u] %s", app->layers[el->layerIndex].id, app->layers[el->layerIndex].name));
+
                     if (mu_button(mu_ctx, "Move to Active Layer")) {
                         Command cmd = { 0 };
                         cmd.type = CMD_LAYER_CHANGE;
@@ -357,6 +368,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     mu_text(mu_ctx, TextFormat("Scale X: %.2f | Y: %.2f", el->scale.x, el->scale.y));
                     if (mu_slider(mu_ctx, &el->scale.x, 0.1f, 5.0f)) app->spatialIndexDirty = true;
                     if (mu_slider(mu_ctx, &el->scale.y, 0.1f, 5.0f)) app->spatialIndexDirty = true;
+
                     mu_layout_row(mu_ctx, 5, (int[]){ (int)(42 * app->uiScale), (int)(42 * app->uiScale), (int)(42 * app->uiScale), (int)(42 * app->uiScale), (int)(42 * app->uiScale) }, (int)(20 * app->uiScale));
                     float presets[] = { 0.0f, 45.0f, 90.0f, 180.0f, 270.0f };
                     const char *presetLabels[] = { "0", "45", "90", "180", "270" };
@@ -371,6 +383,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
+
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
                     if (el->type == ELEMENT_RECT) {
                         mu_text(mu_ctx, TextFormat("Width: %.1f", el->width));
@@ -404,6 +417,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             if (mu_slider(mu_ctx, &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
                         }
                     }
+
                     mu_text(mu_ctx, el->useCustomColor ? "Color: Custom" : "Color: Layer");
                     mu_layout_row(mu_ctx, 4, (int[]){ (int)(55 * app->uiScale), (int)(55 * app->uiScale), (int)(55 * app->uiScale), (int)(55 * app->uiScale) }, (int)(20 * app->uiScale));
                     const char *colorNames[] = { "Sky", "Lime", "Orange", "Purple", "Red", "Gold", "Gray", "Black" };
@@ -419,6 +433,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
+
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
                     if (el->useCustomColor && mu_button(mu_ctx, "Reset to Layer Color")) {
                         Command cmd = { 0 };
@@ -437,9 +452,10 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             }
         }
 
-        // 4. Long Horizontal Status Strip
-        if (app->showHudPanel) {
-            mu_Rect stripRect = mu_rect(0, winH - (int)bottomStripH, winW, (int)bottomStripH);
+        // 4. Animated Status Strip
+        if (app->uiAnim.hudProgress > 0.01f) {
+            float curStripY = (float)winH - (bottomStripH * app->uiAnim.hudProgress);
+            mu_Rect stripRect = mu_rect(0, (int)curStripY, winW, (int)bottomStripH);
             mu_Container *bsWin = mu_get_container(mu_ctx, "##BottomStrip");
             if (bsWin) bsWin->rect = stripRect;
             if (mu_begin_window_ex(mu_ctx, "##BottomStrip", stripRect, MU_OPT_NOTITLE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOFRAME)) {
@@ -457,18 +473,21 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                 mu_text(mu_ctx, TextFormat("Layer: [%u] %s", g_CADState.activeLayerId, app->layers[g_CADState.activeLayerIndex].name));
                 mu_text(mu_ctx, TextFormat("W: (%.1f, %.1f)", g_CADState.mouseWorld.x, g_CADState.mouseWorld.y));
                 mu_text(mu_ctx, TextFormat("S: (%.0f, %.0f)", g_CADState.mouseScreen.x, g_CADState.mouseScreen.y));
+
                 int snapGridInt = app->snapToGrid ? 1 : 0;
                 if (mu_checkbox(mu_ctx, "Snap Grid", &snapGridInt)) {
                     app->snapToGrid = (snapGridInt != 0);
                     app->uiConfig.snapToGrid = app->snapToGrid;
                     SaveUiConfig(CONFIG_FILENAME, &app->uiConfig);
                 }
+
                 int snapElemInt = app->snapEnabled ? 1 : 0;
                 if (mu_checkbox(mu_ctx, "Snap Elem", &snapElemInt)) {
                     app->snapEnabled = (snapElemInt != 0);
                     app->uiConfig.snapEnabled = app->snapEnabled;
                     SaveUiConfig(CONFIG_FILENAME, &app->uiConfig);
                 }
+
                 const char *toolName = "Select";
                 if (g_CADState.activeTool == TOOL_DRAW_PIPE) toolName = (app->dimStep == 0) ? "Pipe (Start)" : "Pipe (End)";
                 else if (g_CADState.activeTool == TOOL_PLACE_FLANGE) toolName = "Place Flange";
@@ -482,6 +501,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                 else if (g_CADState.activeTool == TOOL_ADD_LINE) toolName = (app->dimStep == 0) ? "Line (Start)" : "Line (End)";
                 else if (g_CADState.activeTool == TOOL_DIMENSION) toolName = "Dimension";
                 else if (g_CADState.activeTool == TOOL_PAN) toolName = "Pan View";
+
                 mu_text(mu_ctx, TextFormat("Tool: %s", toolName));
                 mu_text(mu_ctx, TextFormat("Elements: %d (Sel: %d)", app->elementCount, CountSelectedElements(app->elements, app->elementCount)));
                 mu_end_window(mu_ctx);
@@ -534,13 +554,15 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             }
         }
 
-        // 7. Context Menu
-        if (app->showContextMenu) {
+        // 7. Animated Context Menu
+        if (app->uiAnim.contextMenuProgress > 0.01f) {
             float ctxWidth = 180.0f * app->uiScale;
-            float ctxHeight = app->contextOnElement ? (210.0f * app->uiScale) : (210.0f * app->uiScale);
-            mu_Rect cmRect = mu_rect((int)app->contextMenuPos.x, (int)app->contextMenuPos.y, (int)ctxWidth, (int)ctxHeight);
+            float ctxHeight = 210.0f * app->uiScale;
+            float animatedHeight = ctxHeight * app->uiAnim.contextMenuProgress;
+            mu_Rect cmRect = mu_rect((int)app->contextMenuPos.x, (int)app->contextMenuPos.y, (int)ctxWidth, (int)animatedHeight);
             mu_Container *cmWin = mu_get_container(mu_ctx, "##ContextMenu");
             if (cmWin) cmWin->rect = cmRect;
+
             if (mu_begin_window_ex(mu_ctx, "##ContextMenu", cmRect, MU_OPT_NOTITLE | MU_OPT_NORESIZE)) {
                 mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(22 * app->uiScale));
                 if (app->contextOnElement && app->contextElementIndex >= 0 && app->contextElementIndex < app->elementCount) {
@@ -550,7 +572,9 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         cmd.data.del.index = app->contextElementIndex;
                         cmd.data.del.element = app->elements[app->contextElementIndex];
                         ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
-                        app->showContextMenu = false; snprintf(app->statusMessage, 64, "Element Deleted"); app->statusMessageTimer = 1.5f;
+                        app->showContextMenu = false;
+                        snprintf(app->statusMessage, 64, "Element Deleted");
+                        app->statusMessageTimer = 1.5f;
                     }
                     if (mu_button(mu_ctx, "Send Back (1 Step)")) {
                         int targetLayer = app->elements[app->contextElementIndex].layerIndex;
@@ -606,10 +630,14 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                             app->contextElementIndex = app->elementCount - 1;
                             app->showContextMenu = false;
-                            snprintf(app->statusMessage, 64, "Element Duplicated"); app->statusMessageTimer = 1.5f;
+                            snprintf(app->statusMessage, 64, "Element Duplicated");
+                            app->statusMessageTimer = 1.5f;
                         }
                     }
-                    if (mu_button(mu_ctx, "Deselect Elements")) { DeselectAllElements(app->elements, app->elementCount); app->showContextMenu = false; }
+                    if (mu_button(mu_ctx, "Deselect Elements")) {
+                        DeselectAllElements(app->elements, app->elementCount);
+                        app->showContextMenu = false;
+                    }
                 } else {
                     if (mu_button(mu_ctx, "Select Mode")) { g_CADState.activeTool = TOOL_SELECT; app->showContextMenu = false; }
                     if (mu_button(mu_ctx, "+ Draw Pipe")) { g_CADState.activeTool = TOOL_DRAW_PIPE; app->dimStep = 0; app->showContextMenu = false; }
@@ -632,6 +660,5 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             mu_end_window(mu_ctx);
         }
     }
-
     mu_end(mu_ctx);
 }

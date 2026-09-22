@@ -1,5 +1,4 @@
 #include "ui_manager.h"
-
 #include <stddef.h>
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
@@ -11,18 +10,15 @@ void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
     mu_init(mu_ctx);
     mu_ctx->text_width = TextWidthCallback;
     mu_ctx->text_height = TextHeightCallback;
-
     Font bodyFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_BODY);
     SetActiveUIFont(bodyFont);
     GuiSetFont(bodyFont);
     GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(11 * app->uiScale));
-
     ApplyRayguiTheme(app->uiConfig.uiTheme);
 }
 
 void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
     if (app->uiConfig.uiBackend != UI_BACKEND_MICROUI) return;
-
     Vector2 mousePos = GetMousePosition();
     mu_input_mousemove(mu_ctx, (int)mousePos.x, (int)mousePos.y);
 
@@ -57,7 +53,7 @@ void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
 bool UIManager_UpdateAndRenderPanels(AppContext *app, mu_Context *mu_ctx) {
     bool overUI = false;
     Vector2 mousePos = GetMousePosition();
-    
+
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
     float cmdW = 460.0f * app->uiScale;
@@ -80,16 +76,29 @@ void UIManager_RenderOverlays(AppContext *app, mu_Context *mu_ctx) {
     int winH = GetScreenHeight();
     float bottomStripH = 34.0f * app->uiScale;
     float menuBarHeight = 32.0f * app->uiScale;
-    
-    Color barBg = (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 242, 243, 245, 255 } : (Color){ 38, 38, 38, 255 };
-    Color barBorder = (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 195, 198, 204, 255 } : (Color){ 24, 24, 24, 255 };
+
+    Color barBg = {
+        (unsigned char)app->uiAnim.panelBgR,
+        (unsigned char)app->uiAnim.panelBgG,
+        (unsigned char)app->uiAnim.panelBgB,
+        (unsigned char)app->uiAnim.panelBgA
+    };
+    Color barBorder = {
+        (unsigned char)app->uiAnim.borderR,
+        (unsigned char)app->uiAnim.borderG,
+        (unsigned char)app->uiAnim.borderB,
+        (unsigned char)app->uiAnim.borderA
+    };
 
     if (app->uiConfig.uiBackend == UI_BACKEND_MICROUI) {
         if (g_CADState.activeTool != TOOL_PAN) {
             DrawRectangle(0, 0, winW, (int)menuBarHeight, barBg);
             DrawLine(0, (int)menuBarHeight, winW, (int)menuBarHeight, barBorder);
-            DrawRectangle(0, winH - (int)bottomStripH, winW, (int)bottomStripH, barBg);
-            DrawLine(0, winH - (int)bottomStripH, winW, winH - (int)bottomStripH, barBorder);
+            if (app->uiAnim.hudProgress > 0.01f) {
+                float hudY = (float)winH - (bottomStripH * app->uiAnim.hudProgress);
+                DrawRectangle(0, (int)hudY, winW, (int)bottomStripH, barBg);
+                DrawLine(0, (int)hudY, winW, (int)hudY, barBorder);
+            }
         }
         Font bodyFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_BODY);
         RenderMicroui(mu_ctx, bodyFont);
@@ -100,7 +109,6 @@ void UIManager_RenderOverlays(AppContext *app, mu_Context *mu_ctx) {
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
     Rectangle commandBoxRect = { ((float)winW - cmdW) / 2.0f, (float)winH - bottomStripH - cmdH - (4.0f * app->uiScale), cmdW, cmdH };
-
     if (g_CADState.activeTool != TOOL_PAN) {
         DrawRectangleRec(commandBoxRect, (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 252, 252, 252, 255 } : (Color){ 32, 32, 32, 255 });
         DrawRectangleLinesEx(commandBoxRect, 1.0f, barBorder);

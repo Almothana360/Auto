@@ -16,7 +16,7 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
     Vector2 activeToolPoint = g_CADState.mouseWorld;
     bool isElementSnapped = false;
 
-    // Viewport Context snapping calculations
+    // Viewport Context snapping calculations - Independent grid and element snapping
     if (!overUI && g_CADState.activeTool != TOOL_PAN) {
         if (app->snapEnabled) {
             activeToolPoint = GetClosestSnapPoint_Spatial(app->spatialTree, g_CADState.mouseWorld, app->elements, app->elementCount, app->layers, 20.0f / app->camera.zoom);
@@ -44,7 +44,8 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
                 cmd.data.create.index = app->elementCount;
                 cmd.data.create.element = app->tempPolyline;
                 ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
-                snprintf(app->statusMessage, 64, "Polyline Added"); app->statusMessageTimer = 2.0f;
+                snprintf(app->statusMessage, 64, "Polyline Added");
+                app->statusMessageTimer = 2.0f;
             }
             app->tempPolyline.pointCount = 0;
             g_CADState.activeTool = TOOL_SELECT;
@@ -53,9 +54,10 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
             app->showContextMenu = true;
             app->contextMenuPos = g_CADState.mouseScreen;
             float ctxWidth = 180.0f * app->uiScale;
-            float ctxHeight = app->contextOnElement ? (210.0f * app->uiScale) : (210.0f * app->uiScale);
+            float ctxHeight = 210.0f * app->uiScale;
             if (app->contextMenuPos.x + ctxWidth > GetScreenWidth()) app->contextMenuPos.x = GetScreenWidth() - ctxWidth;
             if (app->contextMenuPos.y + ctxHeight > GetScreenHeight()) app->contextMenuPos.y = GetScreenHeight() - ctxHeight;
+
             if (hitIndex != -1) {
                 app->contextOnElement = true;
                 app->contextElementIndex = hitIndex;
@@ -81,18 +83,21 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
 void RenderCadEditorViewport(AppContext *app, bool overUI) {
     (void)overUI;
     Font noteFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_NOTE);
-
     BeginMode2D(app->camera);
 
     // Frustum and Grid Mapping
     Vector2 topLeft = GetScreenToWorld2D((Vector2){ 0, 0 }, app->camera);
     Vector2 bottomRight = GetScreenToWorld2D((Vector2){ (float)GetScreenWidth(), (float)GetScreenHeight() }, app->camera);
-    int startX = (int)(floorf(topLeft.x / app->gridSpacing) * app->gridSpacing); int endX   = (int)(ceilf(bottomRight.x / app->gridSpacing) * app->gridSpacing);
-    int startY = (int)(floorf(topLeft.y / app->gridSpacing) * app->gridSpacing); int endY   = (int)(ceilf(bottomRight.y / app->gridSpacing) * app->gridSpacing);
+    int startX = (int)(floorf(topLeft.x / app->gridSpacing) * app->gridSpacing);
+    int endX   = (int)(ceilf(bottomRight.x / app->gridSpacing) * app->gridSpacing);
+    int startY = (int)(floorf(topLeft.y / app->gridSpacing) * app->gridSpacing);
+    int endY   = (int)(ceilf(bottomRight.y / app->gridSpacing) * app->gridSpacing);
 
     for (int x = startX; x <= endX; x += (int)app->gridSpacing) DrawLine(x, startY, x, endY, LIGHTGRAY);
     for (int y = startY; y <= endY; y += (int)app->gridSpacing) DrawLine(startX, y, endX, y, LIGHTGRAY);
-    DrawLine(0, startY, 0, endY, RED); DrawLine(startX, 0, endX, 0, GREEN); DrawCircle(0, 0, 4, DARKBLUE);
+    DrawLine(0, startY, 0, endY, RED);
+    DrawLine(startX, 0, endX, 0, GREEN);
+    DrawCircle(0, 0, 4, DARKBLUE);
 
     AABB viewFrustumAABB = {
         .min = { fminf(topLeft.x, bottomRight.x), fminf(topLeft.y, bottomRight.y) },
@@ -106,9 +111,9 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
             for (int i = 0; i < app->elementCount; i++) {
                 if (app->elements[i].layerIndex != l) continue;
                 if (!AABBIntersectsAABB(app->cachedAABBs[i], viewFrustumAABB)) continue;
-
                 bool isSelected = app->elements[i].selected;
                 Color renderColor = GetElementColor(&app->elements[i], app->layers, app->layerCount);
+
                 if (app->elements[i].type == ELEMENT_RECT) {
                     Rectangle rect = { app->elements[i].pos.x, app->elements[i].pos.y, app->elements[i].width * app->elements[i].scale.x, app->elements[i].height * app->elements[i].scale.y };
                     Vector2 origin = { rect.width * 0.5f, rect.height * 0.5f };
@@ -121,7 +126,8 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
                     DrawEllipseLines((int)app->elements[i].pos.x, (int)app->elements[i].pos.y, app->elements[i].radiusX * app->elements[i].scale.x, app->elements[i].radiusY * app->elements[i].scale.y, renderColor);
                 } else if (app->elements[i].type == ELEMENT_LINE) {
                     DrawLineEx(app->elements[i].p1, app->elements[i].p2, isSelected ? (app->elements[i].lineThickness + 2.0f)/app->camera.zoom : app->elements[i].lineThickness/app->camera.zoom, isSelected ? GOLD : renderColor);
-                    DrawCircleV(app->elements[i].p1, 4.0f / app->camera.zoom, isSelected ? GOLD : renderColor); DrawCircleV(app->elements[i].p2, 4.0f / app->camera.zoom, isSelected ? GOLD : renderColor);
+                    DrawCircleV(app->elements[i].p1, 4.0f / app->camera.zoom, isSelected ? GOLD : renderColor);
+                    DrawCircleV(app->elements[i].p2, 4.0f / app->camera.zoom, isSelected ? GOLD : renderColor);
                 } else if (app->elements[i].type == ELEMENT_POLYLINE || app->elements[i].type == ELEMENT_FREEHAND) {
                     for (int p = 0; p < app->elements[i].pointCount - 1; p++) {
                         DrawLineEx(app->elements[i].points[p], app->elements[i].points[p+1], isSelected ? (app->elements[i].lineThickness + 2.0f)/app->camera.zoom : app->elements[i].lineThickness/app->camera.zoom, isSelected ? GOLD : renderColor);
@@ -141,7 +147,7 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
         }
     }
 
-    // Resolve Tool/Snap Points for Rendering Output
+    // Resolve Tool/Snap Points for Rendering Output - Independent Snapping
     Vector2 activeToolPoint = g_CADState.mouseWorld;
     bool isElementSnapped = false;
     if (app->snapEnabled) {
@@ -166,6 +172,5 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
         RenderToolPreviews(app, activeToolPoint, noteFont);
     }
     RenderSelectionGizmos(app);
-
     EndMode2D();
 }

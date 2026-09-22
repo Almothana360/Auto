@@ -5,6 +5,22 @@
 #include "commands.h"
 #include "resource_loader.h"
 #include "microui.h"
+#include "tween.h"
+
+typedef struct UiAnimState {
+    // Dock sliding animations (0.0f closed -> 1.0f open)
+    float leftDockProgress;
+    float rightDockProgress;
+    float hudProgress;
+    float contextMenuProgress;
+
+    // Theme color transitions (tweened channels)
+    float panelBgR, panelBgG, panelBgB, panelBgA;
+    float subpanelBgR, subpanelBgG, subpanelBgB, subpanelBgA;
+    float borderR, borderG, borderB, borderA;
+    float textR, textG, textB, textA;
+    int currentThemeTarget;
+} UiAnimState;
 
 typedef struct AppContext {
     ResourceManager resManager;
@@ -63,6 +79,10 @@ typedef struct AppContext {
     bool openWindowMenu;
     bool openElementMenu;
     bool openFunctionsMenu;
+
+    // Tween Animation Engine
+    TweenContext *tweenCtx;
+    UiAnimState uiAnim;
 } AppContext;
 
 void AppContext_Init(AppContext *ctx);

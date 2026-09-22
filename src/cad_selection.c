@@ -10,7 +10,8 @@
 
 void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool overUI, int selectedCount) {
     bool isCtrlDown = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
-    app->hasSnapX = false; app->hasSnapY = false;
+    app->hasSnapX = false;
+    app->hasSnapY = false;
 
     if (!overUI && g_CADState.activeTool == TOOL_SELECT) {
         if (IsMouseButtonPressed(MOUSE_BUTTON_LEFT)) {
@@ -21,6 +22,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 hTested = HitTestHandles(&app->elements[sIdx], g_CADState.mouseWorld, app->camera.zoom);
                 if (hTested != HANDLE_NONE) hIdx = sIdx;
             }
+
             if (hTested != HANDLE_NONE && hIdx != -1) {
                 app->activeHandle = hTested;
                 app->activeHandleElementIdx = hIdx;
@@ -29,8 +31,12 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 int hitIndex = HitTestElement_Spatial(app->spatialTree, app->elements, app->elementCount, app->layers, app->layerCount, g_CADState.mouseWorld);
                 if (hitIndex != -1) {
                     if (isCtrlDown) app->elements[hitIndex].selected = !app->elements[hitIndex].selected;
-                    else if (!app->elements[hitIndex].selected) { DeselectAllElements(app->elements, app->elementCount); app->elements[hitIndex].selected = true; }
-                    app->isDraggingElement = true; app->dragStartWorldPos = g_CADState.mouseWorld;
+                    else if (!app->elements[hitIndex].selected) {
+                        DeselectAllElements(app->elements, app->elementCount);
+                        app->elements[hitIndex].selected = true;
+                    }
+                    app->isDraggingElement = true;
+                    app->dragStartWorldPos = g_CADState.mouseWorld;
                     for (int i = 0; i < app->elementCount; i++) {
                         if (app->elements[i].selected) {
                             app->elementStartStates[i] = app->elements[i];
@@ -38,13 +44,16 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                     }
                 } else {
                     if (!isCtrlDown) DeselectAllElements(app->elements, app->elementCount);
-                    app->isBoxSelecting = true; app->boxStartWorldPos = g_CADState.mouseWorld; app->boxCurrentWorldPos = g_CADState.mouseWorld;
+                    app->isBoxSelecting = true;
+                    app->boxStartWorldPos = g_CADState.mouseWorld;
+                    app->boxCurrentWorldPos = g_CADState.mouseWorld;
                 }
             }
         } else if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
             if (app->activeHandle != HANDLE_NONE && app->activeHandleElementIdx >= 0) {
                 GridElement *el = &app->elements[app->activeHandleElementIdx];
                 Vector2 localMouse = WorldToLocalPoint(activeToolPoint, app->initialHandleElementState.pos, app->initialHandleElementState.rotation);
+
                 if (app->activeHandle == HANDLE_ROTATION) {
                     Vector2 diff = Vector2Subtract(activeToolPoint, el->pos);
                     float angleRad = atan2f(diff.y, diff.x);
@@ -57,6 +66,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                     float halfW = origW * 0.5f;
                     float halfH = origH * 0.5f;
                     float left = -halfW, right = halfW, top = -halfH, bottom = halfH;
+
                     switch (app->activeHandle) {
                         case HANDLE_TOP_LEFT: left = localMouse.x; top = localMouse.y; break;
                         case HANDLE_TOP_CENTER: top = localMouse.y; break;
@@ -68,6 +78,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         case HANDLE_LEFT_CENTER: left = localMouse.x; break;
                         default: break;
                     }
+
                     if (right - left < MIN_ELEMENT_SIZE) {
                         if (app->activeHandle == HANDLE_LEFT_CENTER || app->activeHandle == HANDLE_TOP_LEFT || app->activeHandle == HANDLE_BOTTOM_LEFT) left = right - MIN_ELEMENT_SIZE;
                         else right = left + MIN_ELEMENT_SIZE;
@@ -76,9 +87,11 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         if (app->activeHandle == HANDLE_TOP_CENTER || app->activeHandle == HANDLE_TOP_LEFT || app->activeHandle == HANDLE_TOP_RIGHT) top = bottom - MIN_ELEMENT_SIZE;
                         else bottom = top + MIN_ELEMENT_SIZE;
                     }
+
                     float newW = right - left;
                     float newH = bottom - top;
                     Vector2 localCenter = { (left + right) * 0.5f, (top + bottom) * 0.5f };
+
                     el->width = newW;
                     el->height = newH;
                     el->pos = LocalToWorldPoint(localCenter, app->initialHandleElementState.pos, app->initialHandleElementState.rotation);
@@ -96,9 +109,12 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 app->spatialIndexDirty = true;
             } else if (app->isBoxSelecting) {
                 app->boxCurrentWorldPos = g_CADState.mouseWorld;
-                float minX = fminf(app->boxStartWorldPos.x, app->boxCurrentWorldPos.x); float maxX = fmaxf(app->boxStartWorldPos.x, app->boxCurrentWorldPos.x);
-                float minY = fminf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y); float maxY = fmaxf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
+                float minX = fminf(app->boxStartWorldPos.x, app->boxCurrentWorldPos.x);
+                float maxX = fmaxf(app->boxStartWorldPos.x, app->boxCurrentWorldPos.x);
+                float minY = fminf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
+                float maxY = fmaxf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
                 AABB selBox = { { minX, minY }, { maxX, maxY } };
+
                 for (int i = 0; i < app->elementCount; i++) {
                     if (!app->layers[app->elements[i].layerIndex].visible || app->layers[app->elements[i].layerIndex].locked) continue;
                     if (AABBIntersectsAABB(app->cachedAABBs[i], selBox)) {
@@ -111,10 +127,13 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
             } else if (app->isDraggingElement && selectedCount > 0) {
                 Vector2 rawMouseDelta = { g_CADState.mouseWorld.x - app->dragStartWorldPos.x, g_CADState.mouseWorld.y - app->dragStartWorldPos.y };
                 Vector2 mouseDelta = rawMouseDelta;
-                if (app->snapEnabled && selectedCount == 1) {
+
+                // Snapping calculations during drag (snaps correctly whether snapToGrid, snapEnabled, or both are on)
+                if ((app->snapEnabled || app->snapToGrid) && selectedCount == 1) {
                     int sIdx = GetFirstSelectedIndex(app->elements, app->elementCount);
                     GridElement tempEl = app->elements[sIdx];
                     GridElement *start = &app->elementStartStates[sIdx];
+
                     if (tempEl.type == ELEMENT_DIMENSION) {
                         tempEl.dimPos.x = start->dimPos.x + rawMouseDelta.x;
                         tempEl.dimPos.y = start->dimPos.y + rawMouseDelta.y;
@@ -124,7 +143,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         tempEl.p2.x = start->p2.x + rawMouseDelta.x;
                         tempEl.p2.y = start->p2.y + rawMouseDelta.y;
                     } else if (tempEl.type == ELEMENT_POLYLINE || tempEl.type == ELEMENT_FREEHAND) {
-                        for(int p=0; p<tempEl.pointCount; p++) {
+                        for (int p = 0; p < tempEl.pointCount; p++) {
                             tempEl.points[p].x = start->points[p].x + rawMouseDelta.x;
                             tempEl.points[p].y = start->points[p].y + rawMouseDelta.y;
                         }
@@ -141,49 +160,84 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         tempEl.pos.x = start->pos.x + rawMouseDelta.x;
                         tempEl.pos.y = start->pos.y + rawMouseDelta.y;
                     }
-                    float myLinesX[5], myLinesY[5]; int myCntX = 0, myCntY = 0;
+
+                    float myLinesX[5], myLinesY[5];
+                    int myCntX = 0, myCntY = 0;
                     GetElementSnapLines(&tempEl, myLinesX, &myCntX, myLinesY, &myCntY);
+
                     float bestDx = app->snapThreshold / app->camera.zoom;
                     float bestDy = app->snapThreshold / app->camera.zoom;
                     float applyDx = 0.0f, applyDy = 0.0f;
-                    AABB dragAABB = ExpandAABB(GetElementAABB(&tempEl), app->snapThreshold / app->camera.zoom);
-                    for (int i = 0; i < app->elementCount; i++) {
-                        if (i == sIdx || !app->layers[app->elements[i].layerIndex].visible) continue;
-                        if (!AABBIntersectsAABB(app->cachedAABBs[i], dragAABB)) continue;
-                        float tLinesX[5], tLinesY[5]; int tCntX = 0, tCntY = 0;
-                        GetElementSnapLines(&app->elements[i], tLinesX, &tCntX, tLinesY, &tCntY);
-                        for (int m = 0; m < myCntX; m++) {
-                            for (int t = 0; t < tCntX; t++) {
-                                float dx = tLinesX[t] - myLinesX[m];
-                                if (fabsf(dx) < fabsf(bestDx)) { bestDx = dx; applyDx = dx; app->hasSnapX = true; app->snapXVal = tLinesX[t]; }
+
+                    // 1. Element-to-element snapping
+                    if (app->snapEnabled) {
+                        AABB dragAABB = ExpandAABB(GetElementAABB(&tempEl), app->snapThreshold / app->camera.zoom);
+                        for (int i = 0; i < app->elementCount; i++) {
+                            if (i == sIdx || !app->layers[app->elements[i].layerIndex].visible) continue;
+                            if (!AABBIntersectsAABB(app->cachedAABBs[i], dragAABB)) continue;
+
+                            float tLinesX[5], tLinesY[5];
+                            int tCntX = 0, tCntY = 0;
+                            GetElementSnapLines(&app->elements[i], tLinesX, &tCntX, tLinesY, &tCntY);
+
+                            for (int m = 0; m < myCntX; m++) {
+                                for (int t = 0; t < tCntX; t++) {
+                                    float dx = tLinesX[t] - myLinesX[m];
+                                    if (fabsf(dx) < fabsf(bestDx)) {
+                                        bestDx = dx;
+                                        applyDx = dx;
+                                        app->hasSnapX = true;
+                                        app->snapXVal = tLinesX[t];
+                                    }
+                                }
                             }
-                        }
-                        for (int m = 0; m < myCntY; m++) {
-                            for (int t = 0; t < tCntY; t++) {
-                                float dy = tLinesY[t] - myLinesY[m];
-                                if (fabsf(dy) < fabsf(bestDy)) { bestDy = dy; applyDy = dy; app->hasSnapY = true; app->snapYVal = tLinesY[t]; }
+                            for (int m = 0; m < myCntY; m++) {
+                                for (int t = 0; t < tCntY; t++) {
+                                    float dy = tLinesY[t] - myLinesY[m];
+                                    if (fabsf(dy) < fabsf(bestDy)) {
+                                        bestDy = dy;
+                                        applyDy = dy;
+                                        app->hasSnapY = true;
+                                        app->snapYVal = tLinesY[t];
+                                    }
+                                }
                             }
                         }
                     }
+
+                    // 2. Grid snapping (independent: snaps to grid lines unconditionally if snapToGrid is active)
                     if (app->snapToGrid) {
                         for (int m = 0; m < myCntX; m++) {
                             float gridX = roundf(myLinesX[m] / app->gridSpacing) * app->gridSpacing;
                             float dx = gridX - myLinesX[m];
-                            if (fabsf(dx) < fabsf(bestDx)) { bestDx = dx; applyDx = dx; app->hasSnapX = true; app->snapXVal = gridX; }
+                            if (fabsf(dx) < fabsf(bestDx)) {
+                                bestDx = dx;
+                                applyDx = dx;
+                                app->hasSnapX = true;
+                                app->snapXVal = gridX;
+                            }
                         }
                         for (int m = 0; m < myCntY; m++) {
                             float gridY = roundf(myLinesY[m] / app->gridSpacing) * app->gridSpacing;
                             float dy = gridY - myLinesY[m];
-                            if (fabsf(dy) < fabsf(bestDy)) { bestDy = dy; applyDy = dy; app->hasSnapY = true; app->snapYVal = gridY; }
+                            if (fabsf(dy) < fabsf(bestDy)) {
+                                bestDy = dy;
+                                applyDy = dy;
+                                app->hasSnapY = true;
+                                app->snapYVal = gridY;
+                            }
                         }
                     }
+
                     mouseDelta.x += applyDx;
                     mouseDelta.y += applyDy;
                 }
+
                 for (int i = 0; i < app->elementCount; i++) {
                     if (!app->elements[i].selected) continue;
                     GridElement *curr = &app->elements[i];
                     GridElement *start = &app->elementStartStates[i];
+
                     if (curr->type == ELEMENT_DIMENSION) {
                         curr->dimPos.x = start->dimPos.x + mouseDelta.x;
                         curr->dimPos.y = start->dimPos.y + mouseDelta.y;
@@ -193,7 +247,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         curr->p2.x = start->p2.x + mouseDelta.x;
                         curr->p2.y = start->p2.y + mouseDelta.y;
                     } else if (curr->type == ELEMENT_POLYLINE || curr->type == ELEMENT_FREEHAND) {
-                        for(int p=0; p<curr->pointCount; p++) {
+                        for (int p = 0; p < curr->pointCount; p++) {
                             curr->points[p].x = start->points[p].x + mouseDelta.x;
                             curr->points[p].y = start->points[p].y + mouseDelta.y;
                         }
@@ -235,6 +289,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
             } else if (app->elements[firstIdx].type == ELEMENT_DIMENSION) {
                 diff = Vector2Subtract(app->elements[firstIdx].dimPos, app->elementStartStates[firstIdx].dimPos);
             }
+
             if (Vector2LengthSqr(diff) > 0.0001f) {
                 Command moveCmd = { 0 };
                 moveCmd.type = CMD_MOVE_BATCH;
@@ -261,7 +316,10 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 app->cmdHistory->count = app->cmdHistory->currentIndex;
             }
         }
-        app->isDraggingElement = false; app->isBoxSelecting = false; app->activeHandle = HANDLE_NONE; app->activeHandleElementIdx = -1;
+        app->isDraggingElement = false;
+        app->isBoxSelecting = false;
+        app->activeHandle = HANDLE_NONE;
+        app->activeHandleElementIdx = -1;
     }
 }
 
@@ -272,12 +330,15 @@ void RenderSelectionGizmos(AppContext *app) {
         }
     }
     if (app->isBoxSelecting) {
-        float minX = fminf(app->boxStartWorldPos.x, app->boxCurrentWorldPos.x); float minY = fminf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
-        float width = fabsf(app->boxCurrentWorldPos.x - app->boxStartWorldPos.x); float height = fabsf(app->boxCurrentWorldPos.y - app->boxStartWorldPos.y);
+        float minX = fminf(app->boxStartWorldPos.x, app->boxCurrentWorldPos.x);
+        float minY = fminf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
+        float width = fabsf(app->boxCurrentWorldPos.x - app->boxStartWorldPos.x);
+        float height = fabsf(app->boxCurrentWorldPos.y - app->boxStartWorldPos.y);
         Rectangle box = { minX, minY, width, height };
-        DrawRectangleRec(box, Fade(SKYBLUE, 0.2f)); DrawRectangleLinesEx(box, 1.0f / app->camera.zoom, BLUE);
+        DrawRectangleRec(box, Fade(SKYBLUE, 0.2f));
+        DrawRectangleLinesEx(box, 1.0f / app->camera.zoom, BLUE);
     }
-    if (app->isDraggingElement && app->snapEnabled) {
+    if (app->isDraggingElement && (app->snapEnabled || app->snapToGrid)) {
         if (app->hasSnapX) DrawLineEx((Vector2){ app->snapXVal, -100000.0f }, (Vector2){ app->snapXVal, 100000.0f }, 1.0f / app->camera.zoom, MAGENTA);
         if (app->hasSnapY) DrawLineEx((Vector2){ -100000.0f, app->snapYVal }, (Vector2){ 100000.0f, app->snapYVal }, 1.0f / app->camera.zoom, MAGENTA);
     }

@@ -58,19 +58,39 @@ void ApplyRayguiTheme(int theme) {
 }
 
 static Color GetThemePanelBg(const AppContext *app) {
-    return (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 242, 243, 245, 255 } : (Color){ 38, 38, 38, 255 };
+    return (Color){
+        (unsigned char)app->uiAnim.panelBgR,
+        (unsigned char)app->uiAnim.panelBgG,
+        (unsigned char)app->uiAnim.panelBgB,
+        (unsigned char)app->uiAnim.panelBgA
+    };
 }
 
 static Color GetThemeSubpanelBg(const AppContext *app) {
-    return (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 230, 233, 238, 255 } : (Color){ 30, 30, 30, 255 };
+    return (Color){
+        (unsigned char)app->uiAnim.subpanelBgR,
+        (unsigned char)app->uiAnim.subpanelBgG,
+        (unsigned char)app->uiAnim.subpanelBgB,
+        (unsigned char)app->uiAnim.subpanelBgA
+    };
 }
 
 static Color GetThemeBorder(const AppContext *app) {
-    return (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 195, 198, 204, 255 } : (Color){ 24, 24, 24, 255 };
+    return (Color){
+        (unsigned char)app->uiAnim.borderR,
+        (unsigned char)app->uiAnim.borderG,
+        (unsigned char)app->uiAnim.borderB,
+        (unsigned char)app->uiAnim.borderA
+    };
 }
 
 static Color GetThemeTextColor(const AppContext *app) {
-    return (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? (Color){ 30, 30, 30, 255 } : (Color){ 230, 230, 230, 255 };
+    return (Color){
+        (unsigned char)app->uiAnim.textR,
+        (unsigned char)app->uiAnim.textG,
+        (unsigned char)app->uiAnim.textB,
+        (unsigned char)app->uiAnim.textA
+    };
 }
 
 static void DispatchCommand(AppContext *app, const char *cmd) {
@@ -94,29 +114,33 @@ bool CheckGuiHover_Raygui(AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
     Vector2 mousePos = GetMousePosition();
-
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
     float leftDockW = 320.0f * app->uiScale;
     float rightDockW = 290.0f * app->uiScale;
     float dockH = (float)winH - menuBarHeight - bottomStripH;
-
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
+
     Rectangle commandBoxRect = { ((float)winW - cmdW) / 2.0f, (float)winH - bottomStripH - cmdH - (4.0f * app->uiScale), cmdW, cmdH };
     if (CheckCollisionPointRec(mousePos, commandBoxRect)) return true;
-
     if (CheckCollisionPointRec(mousePos, (Rectangle){ 0, 0, (float)winW, menuBarHeight })) return true;
-    if (app->showHudPanel && CheckCollisionPointRec(mousePos, (Rectangle){ 0, (float)winH - bottomStripH, (float)winW, bottomStripH })) return true;
 
-    if (app->showLeftDock) {
-        if (CheckCollisionPointRec(mousePos, (Rectangle){ 0, menuBarHeight, leftDockW, dockH })) return true;
+    if (app->uiAnim.hudProgress > 0.01f) {
+        float hudY = (float)winH - (bottomStripH * app->uiAnim.hudProgress);
+        if (CheckCollisionPointRec(mousePos, (Rectangle){ 0, hudY, (float)winW, bottomStripH })) return true;
+    }
+
+    if (app->uiAnim.leftDockProgress > 0.01f) {
+        float curLeftX = -leftDockW * (1.0f - app->uiAnim.leftDockProgress);
+        if (CheckCollisionPointRec(mousePos, (Rectangle){ curLeftX, menuBarHeight, leftDockW, dockH })) return true;
     } else {
         if (CheckCollisionPointRec(mousePos, (Rectangle){ 4, menuBarHeight + 4, 28.0f * app->uiScale, 24.0f * app->uiScale })) return true;
     }
 
-    if (app->showRightDock) {
-        if (CheckCollisionPointRec(mousePos, (Rectangle){ (float)winW - rightDockW, menuBarHeight, rightDockW, dockH })) return true;
+    if (app->uiAnim.rightDockProgress > 0.01f) {
+        float curRightX = (float)winW - (rightDockW * app->uiAnim.rightDockProgress);
+        if (CheckCollisionPointRec(mousePos, (Rectangle){ curRightX, menuBarHeight, rightDockW, dockH })) return true;
     } else {
         if (CheckCollisionPointRec(mousePos, (Rectangle){ winW - 32.0f * app->uiScale, menuBarHeight + 4, 28.0f * app->uiScale, 24.0f * app->uiScale })) return true;
     }
@@ -125,15 +149,13 @@ bool CheckGuiHover_Raygui(AppContext *app) {
         Rectangle modalUnitRect = { (winW - 300.0f * app->uiScale) / 2.0f, (winH - 240.0f * app->uiScale) / 2.0f, 300.0f * app->uiScale, 240.0f * app->uiScale };
         if (CheckCollisionPointRec(mousePos, modalUnitRect)) return true;
     }
-
     if (app->showScaleWindow) {
         Rectangle modalScaleRect = { (winW - 300.0f * app->uiScale) / 2.0f, (winH - 200.0f * app->uiScale) / 2.0f, 300.0f * app->uiScale, 200.0f * app->uiScale };
         if (CheckCollisionPointRec(mousePos, modalScaleRect)) return true;
     }
-
-    if (app->showContextMenu) {
+    if (app->uiAnim.contextMenuProgress > 0.01f) {
         float ctxWidth = 180.0f * app->uiScale;
-        float ctxHeight = app->contextOnElement ? (210.0f * app->uiScale) : (220.0f * app->uiScale);
+        float ctxHeight = (210.0f * app->uiScale) * app->uiAnim.contextMenuProgress;
         Rectangle ctxMenuRect = { app->contextMenuPos.x, app->contextMenuPos.y, ctxWidth, ctxHeight };
         if (CheckCollisionPointRec(mousePos, ctxMenuRect)) return true;
     }
@@ -162,11 +184,11 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
     float spacing = 4.0f * app->uiScale;
 
     Font bodyFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_BODY);
-
     Color pBg = GetThemePanelBg(app);
     Color subBg = GetThemeSubpanelBg(app);
     Color pBorder = GetThemeBorder(app);
     Color pText = GetThemeTextColor(app);
+
     bool clickedTopMenuButton = false;
 
     if (g_CADState.activeTool == TOOL_PAN) {
@@ -228,23 +250,24 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         app->openFunctionsMenu = !prev;
     }
 
-    // 2. Left Dock
-    if (!app->showLeftDock) {
+    // 2. Animated Left Dock
+    if (!app->showLeftDock && app->uiAnim.leftDockProgress <= 0.05f) {
         Rectangle lToggleRect = { 4, dockY + 4, 28.0f * app->uiScale, 24.0f * app->uiScale };
         DrawRectangleRec(lToggleRect, pBg);
         DrawRectangleLinesEx(lToggleRect, 1.0f, pBorder);
         if (GuiButton(lToggleRect, ">")) app->showLeftDock = true;
-    } else {
-        Rectangle lDockRect = { 0, dockY, leftDockW, dockH };
+    } else if (app->uiAnim.leftDockProgress > 0.01f) {
+        float curLeftX = -leftDockW * (1.0f - app->uiAnim.leftDockProgress);
+        Rectangle lDockRect = { curLeftX, dockY, leftDockW, dockH };
         DrawRectangleRec(lDockRect, pBg);
         DrawRectangleLinesEx(lDockRect, 1.0f, pBorder);
 
-        Rectangle lHeader = { 0, dockY, leftDockW, 26.0f * app->uiScale };
+        Rectangle lHeader = { curLeftX, dockY, leftDockW, 26.0f * app->uiScale };
         DrawRectangleRec(lHeader, subBg);
-        DrawLine(0, (int)(dockY + 26.0f * app->uiScale), (int)leftDockW, (int)(dockY + 26.0f * app->uiScale), pBorder);
-        DrawTextEx(bodyFont, "Project Workspace", (Vector2){ 10.0f * app->uiScale, dockY + 6.0f * app->uiScale }, 12.0f * app->uiScale, 1.0f, pText);
+        DrawLine((int)curLeftX, (int)(dockY + 26.0f * app->uiScale), (int)(curLeftX + leftDockW), (int)(dockY + 26.0f * app->uiScale), pBorder);
+        DrawTextEx(bodyFont, "Project Workspace", (Vector2){ curLeftX + 10.0f * app->uiScale, dockY + 6.0f * app->uiScale }, 12.0f * app->uiScale, 1.0f, pText);
 
-        if (GuiButton((Rectangle){ leftDockW - 30.0f * app->uiScale, dockY + 3.0f * app->uiScale, 24.0f * app->uiScale, 20.0f * app->uiScale }, "<")) {
+        if (GuiButton((Rectangle){ curLeftX + leftDockW - 30.0f * app->uiScale, dockY + 3.0f * app->uiScale, 24.0f * app->uiScale, 20.0f * app->uiScale }, "<")) {
             app->showLeftDock = false;
         }
 
@@ -253,7 +276,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (halfH < 80.0f) halfH = 80.0f;
 
         // Layers Section
-        Rectangle layersBox = { 6.0f * app->uiScale, dockY + 30.0f * app->uiScale, leftDockW - 12.0f * app->uiScale, halfH };
+        Rectangle layersBox = { curLeftX + 6.0f * app->uiScale, dockY + 30.0f * app->uiScale, leftDockW - 12.0f * app->uiScale, halfH };
         DrawRectangleRec(layersBox, subBg);
         DrawRectangleLinesEx(layersBox, 1.0f, pBorder);
         GuiGroupBox(layersBox, "Layers");
@@ -280,7 +303,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             float lx = layersBox.x + 4.0f * app->uiScale;
             float bWidth = 18.0f * app->uiScale;
             bool isTargetActive = (i == app->activeLayerIndex);
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, isTargetActive ? ">" : " ")) {
                 app->activeLayerIndex = i;
                 g_CADState.activeLayerIndex = i;
@@ -289,17 +311,14 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 app->layerNameEditBuf[sizeof(app->layerNameEditBuf) - 1] = '\0';
             }
             lx += bWidth + 2;
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, app->layers[i].visible ? "V" : "H")) {
                 app->layers[i].visible = !app->layers[i].visible;
             }
             lx += bWidth + 2;
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, app->layers[i].locked ? "L" : "U")) {
                 app->layers[i].locked = !app->layers[i].locked;
             }
             lx += bWidth + 2;
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, "D")) {
                 DeleteLayer(app->elements, &app->elementCount, app->layers, &app->layerCount, i, &app->activeLayerIndex);
                 ClearCommandHistory(app->cmdHistory);
@@ -307,13 +326,10 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 break;
             }
             lx += bWidth + 2;
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, "^")) app->layers[i].renderOrder++;
             lx += bWidth + 2;
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, "v")) app->layers[i].renderOrder--;
             lx += bWidth + 2;
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, "C")) {
                 for (int c = 0; c < PALETTE_SIZE; c++) {
                     if (ColorToInt(app->layers[i].defaultColor) == ColorToInt(PALETTE[c])) {
@@ -323,19 +339,16 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 }
             }
             lx += bWidth + 4;
-
             float labelW = layersBox.x + layersBox.width - lx - 4.0f;
             DrawRectangle((int)lx, (int)rowY, (int)labelW, (int)itemH, Fade(app->layers[i].defaultColor, 0.35f));
             DrawTextEx(bodyFont, TextFormat("[%u] %s (%d)", app->layers[i].id, app->layers[i].name, app->layers[i].entityCount),
                        (Vector2){ lx + 2.0f, rowY + 3.0f }, 11.0f * app->uiScale, 1.0f, pText);
-
             rowY += itemH + 2.0f;
         }
 
         // Rename row
         float renameY = layersBox.y + layersBox.height - 26.0f * app->uiScale;
         DrawTextEx(bodyFont, "Rename:", (Vector2){ layersBox.x + 6.0f, renameY + 4.0f }, 11.0f * app->uiScale, 1.0f, pText);
-
         Rectangle renameBox = { layersBox.x + 60.0f * app->uiScale, renameY, layersBox.width - 66.0f * app->uiScale, 20.0f * app->uiScale };
         if (GuiTextBox(renameBox, app->layerNameEditBuf, sizeof(app->layerNameEditBuf), app->layerRenameEditMode)) {
             app->layerRenameEditMode = !app->layerRenameEditMode;
@@ -346,7 +359,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         }
 
         // Elements Section
-        Rectangle elemsBox = { 6.0f * app->uiScale, layersBox.y + layersBox.height + 6.0f * app->uiScale, leftDockW - 12.0f * app->uiScale, halfH };
+        Rectangle elemsBox = { curLeftX + 6.0f * app->uiScale, layersBox.y + layersBox.height + 6.0f * app->uiScale, leftDockW - 12.0f * app->uiScale, halfH };
         DrawRectangleRec(elemsBox, subBg);
         DrawRectangleLinesEx(elemsBox, 1.0f, pBorder);
         GuiGroupBox(elemsBox, TextFormat("Elements (%d)", app->elementCount));
@@ -359,8 +372,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         float elRowY = elemsBox.y + 26.0f * app->uiScale;
         int maxVisibleElems = (int)((elemsBox.height - 30.0f * app->uiScale) / (itemH + 2.0f));
         if (maxVisibleElems < 1) maxVisibleElems = 1;
-
         bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+
         for (int i = 0; i < app->elementCount && i < maxVisibleElems; i++) {
             const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rect" :
                                   (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" :
@@ -371,11 +384,9 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                   (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" :
                                   (app->elements[i].type == ELEMENT_LINE ? "Pipe/Line" :
                                   (app->elements[i].type == ELEMENT_SYMBOL ? "Symbol" : "Dim"))))))));
-
             const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
             char itemLabel[64];
             snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
-
             Rectangle itemRect = { elemsBox.x + 4.0f * app->uiScale, elRowY, elemsBox.width - 8.0f * app->uiScale, itemH };
             if (GuiButton(itemRect, itemLabel)) {
                 if (!isCtrl) DeselectAllElements(app->elements, app->elementCount);
@@ -385,32 +396,33 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         }
     }
 
-    // 3. Right Dock (Inspector)
+    // 3. Animated Right Dock (Inspector)
     int selectedCount = CountSelectedElements(app->elements, app->elementCount);
     int selectedElementIndex = GetFirstSelectedIndex(app->elements, app->elementCount);
 
-    if (!app->showRightDock) {
+    if (!app->showRightDock && app->uiAnim.rightDockProgress <= 0.05f) {
         Rectangle rToggleRect = { winW - 32.0f * app->uiScale, dockY + 4, 28.0f * app->uiScale, 24.0f * app->uiScale };
         DrawRectangleRec(rToggleRect, pBg);
         DrawRectangleLinesEx(rToggleRect, 1.0f, pBorder);
         if (GuiButton(rToggleRect, "<")) app->showRightDock = true;
-    } else {
-        Rectangle rDockRect = { winW - rightDockW, dockY, rightDockW, dockH };
+    } else if (app->uiAnim.rightDockProgress > 0.01f) {
+        float curRightX = (float)winW - (rightDockW * app->uiAnim.rightDockProgress);
+        Rectangle rDockRect = { curRightX, dockY, rightDockW, dockH };
         DrawRectangleRec(rDockRect, pBg);
         DrawRectangleLinesEx(rDockRect, 1.0f, pBorder);
 
-        Rectangle rHeader = { winW - rightDockW, dockY, rightDockW, 26.0f * app->uiScale };
+        Rectangle rHeader = { curRightX, dockY, rightDockW, 26.0f * app->uiScale };
         DrawRectangleRec(rHeader, subBg);
-        DrawLine((int)(winW - rightDockW), (int)(dockY + 26.0f * app->uiScale), winW, (int)(dockY + 26.0f * app->uiScale), pBorder);
-        DrawTextEx(bodyFont, "Inspector Properties", (Vector2){ winW - rightDockW + 10.0f * app->uiScale, dockY + 6.0f * app->uiScale }, 12.0f * app->uiScale, 1.0f, pText);
+        DrawLine((int)curRightX, (int)(dockY + 26.0f * app->uiScale), (int)(curRightX + rightDockW), (int)(dockY + 26.0f * app->uiScale), pBorder);
+        DrawTextEx(bodyFont, "Inspector Properties", (Vector2){ curRightX + 10.0f * app->uiScale, dockY + 6.0f * app->uiScale }, 12.0f * app->uiScale, 1.0f, pText);
 
-        Rectangle closeInspectorBtn = { winW - 30.0f * app->uiScale, dockY + 3.0f * app->uiScale, 24.0f * app->uiScale, 20.0f * app->uiScale };
+        Rectangle closeInspectorBtn = { curRightX + rightDockW - 30.0f * app->uiScale, dockY + 3.0f * app->uiScale, 24.0f * app->uiScale, 20.0f * app->uiScale };
         if (GuiButton(closeInspectorBtn, ">")) {
             app->showRightDock = false;
         }
 
         float inspY = dockY + 32.0f * app->uiScale;
-        float inspX = winW - rightDockW + 10.0f * app->uiScale;
+        float inspX = curRightX + 10.0f * app->uiScale;
         float inspW = rightDockW - 20.0f * app->uiScale;
 
         if (selectedCount > 0 && selectedElementIndex >= 0) {
@@ -424,7 +436,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                 (el->type == ELEMENT_FREEHAND ? "Type: Freehand" :
                                 (el->type == ELEMENT_LINE ? "Type: Pipe / Line" :
                                 (el->type == ELEMENT_SYMBOL ? "Type: Flange / Symbol" : "Type: Dimension"))))))));
-
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, title); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Entity ID: %u", el->id)); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y)); inspY += btnH;
@@ -503,7 +514,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Width: %.1f", el->width)); inspY += btnH;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->width, MIN_ELEMENT_SIZE, 300.0f)) app->spatialIndexDirty = true;
                 inspY += btnH + spacing;
-
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Height: %.1f", el->height)); inspY += btnH;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->height, MIN_ELEMENT_SIZE, 300.0f)) app->spatialIndexDirty = true;
                 inspY += btnH + spacing;
@@ -515,7 +525,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Radius X: %.1f", el->radiusX)); inspY += btnH;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->radiusX, MIN_ELEMENT_SIZE, 200.0f)) app->spatialIndexDirty = true;
                 inspY += btnH + spacing;
-
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Radius Y: %.1f", el->radiusY)); inspY += btnH;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->radiusY, MIN_ELEMENT_SIZE, 200.0f)) app->spatialIndexDirty = true;
                 inspY += btnH + spacing;
@@ -527,12 +536,10 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     app->spatialIndexDirty = true;
                 }
                 inspY += btnH + spacing;
-
                 if (GuiCheckBox((Rectangle){ inspX, inspY, 18.0f * app->uiScale, 18.0f * app->uiScale }, "Pointer Arrow", &el->showArrow)) {
                     app->spatialIndexDirty = true;
                 }
                 inspY += btnH + spacing;
-
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Font Size: %d", el->textSize)); inspY += btnH;
                 float ts = (float)el->textSize;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
@@ -541,12 +548,10 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Line Thick: %.1f", el->lineThickness)); inspY += btnH;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->lineThickness, 1.0f, 10.0f)) app->spatialIndexDirty = true;
                 inspY += btnH + spacing;
-
                 if (el->type == ELEMENT_DIMENSION) {
                     GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Tick Thick: %.1f", el->tickThickness)); inspY += btnH;
                     GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->tickThickness, 1.0f, 10.0f);
                     inspY += btnH + spacing;
-
                     GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Text Size: %d", el->textSize)); inspY += btnH;
                     float ts = (float)el->textSize;
                     if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
@@ -587,17 +592,18 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         }
     }
 
-    // 4. Bottom Status Strip
-    if (app->showHudPanel) {
-        Rectangle stripRect = { 0, (float)winH - bottomStripH, (float)winW, bottomStripH };
+    // 4. Animated Bottom Status Strip
+    if (app->uiAnim.hudProgress > 0.01f) {
+        float hudY = (float)winH - (bottomStripH * app->uiAnim.hudProgress);
+        Rectangle stripRect = { 0, hudY, (float)winW, bottomStripH };
         DrawRectangleRec(stripRect, pBg);
-        DrawLine(0, (int)((float)winH - bottomStripH), winW, (int)((float)winH - bottomStripH), pBorder);
+        DrawLine(0, (int)hudY, winW, (int)hudY, pBorder);
 
         float sX = 10.0f * app->uiScale;
-        float sY = (float)winH - bottomStripH + 6.0f * app->uiScale;
+        float sY = hudY + 6.0f * app->uiScale;
         float sH = bottomStripH - 12.0f * app->uiScale;
-        const char *curLName = (g_CADState.activeLayerIndex >= 0 && g_CADState.activeLayerIndex < app->layerCount) ? app->layers[g_CADState.activeLayerIndex].name : "0";
 
+        const char *curLName = (g_CADState.activeLayerIndex >= 0 && g_CADState.activeLayerIndex < app->layerCount) ? app->layers[g_CADState.activeLayerIndex].name : "0";
         GuiLabel((Rectangle){ sX, sY, 170.0f * app->uiScale, sH }, TextFormat("Layer: [%u] %s", g_CADState.activeLayerId, curLName));
         sX += 175.0f * app->uiScale;
 
@@ -662,6 +668,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (GuiButton((Rectangle){ uX, uY, uW, btnH }, app->currentUnit == UNIT_M  ? "[X] m"  : "[ ] m"))  { app->currentUnit = UNIT_M;  app->uiConfig.currentUnit = app->currentUnit; SaveUiConfig(CONFIG_FILENAME, &app->uiConfig); } uY += btnH + spacing;
         if (GuiButton((Rectangle){ uX, uY, uW, btnH }, app->currentUnit == UNIT_IN ? "[X] in" : "[ ] in")) { app->currentUnit = UNIT_IN; app->uiConfig.currentUnit = app->currentUnit; SaveUiConfig(CONFIG_FILENAME, &app->uiConfig); } uY += btnH + spacing;
         if (GuiButton((Rectangle){ uX, uY, uW, btnH }, app->currentUnit == UNIT_FT ? "[X] ft" : "[ ] ft")) { app->currentUnit = UNIT_FT; app->uiConfig.currentUnit = app->currentUnit; SaveUiConfig(CONFIG_FILENAME, &app->uiConfig); } uY += btnH + spacing;
+
         if (GuiButton((Rectangle){ uX, uY + 5.0f, uW, btnH }, "Close")) {
             app->showUnitWindow = false;
         }
@@ -692,13 +699,18 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         }
     }
 
-    // 7. Context Menu
-    if (app->showContextMenu) {
+    // 7. Animated Context Menu
+    if (app->uiAnim.contextMenuProgress > 0.01f) {
         float ctxWidth = 180.0f * app->uiScale;
-        float ctxHeight = app->contextOnElement ? (210.0f * app->uiScale) : (220.0f * app->uiScale);
+        float ctxFullHeight = 210.0f * app->uiScale;
+        float ctxHeight = ctxFullHeight * app->uiAnim.contextMenuProgress;
         Rectangle ctxMenuRect = { app->contextMenuPos.x, app->contextMenuPos.y, ctxWidth, ctxHeight };
-        DrawRectangleRec(ctxMenuRect, pBg);
-        DrawRectangleLinesEx(ctxMenuRect, 1.0f, pBorder);
+
+        DrawRectangleRec(ctxMenuRect, Fade(pBg, app->uiAnim.contextMenuProgress));
+        DrawRectangleLinesEx(ctxMenuRect, 1.0f, Fade(pBorder, app->uiAnim.contextMenuProgress));
+
+        // Scissor clip for smooth unfolding
+        BeginScissorMode((int)ctxMenuRect.x, (int)ctxMenuRect.y, (int)ctxMenuRect.width, (int)ctxMenuRect.height);
 
         float cX = ctxMenuRect.x + 4.0f * app->uiScale;
         float cY = ctxMenuRect.y + 6.0f * app->uiScale;
@@ -713,7 +725,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 cmd.data.del.element = app->elements[app->contextElementIndex];
                 ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                 app->showContextMenu = false;
-                snprintf(app->statusMessage, 64, "Element Deleted"); app->statusMessageTimer = 1.5f;
+                snprintf(app->statusMessage, 64, "Element Deleted");
+                app->statusMessageTimer = 1.5f;
             } cY += cH + 2;
 
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Send Back (1 Step)")) {
@@ -773,7 +786,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                     app->contextElementIndex = app->elementCount - 1;
                     app->showContextMenu = false;
-                    snprintf(app->statusMessage, 64, "Element Duplicated"); app->statusMessageTimer = 1.5f;
+                    snprintf(app->statusMessage, 64, "Element Duplicated");
+                    app->statusMessageTimer = 1.5f;
                 }
             } cY += cH + 2;
 
@@ -790,6 +804,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Deselect Elements")) { DeselectAllElements(app->elements, app->elementCount); app->showContextMenu = false; } cY += cH + 2;
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Reset View")) { DispatchCommand(app, "reset"); app->showContextMenu = false; }
         }
+
+        EndScissorMode();
     }
 
     // 8. Top Menu Popups
@@ -819,25 +835,21 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         DrawRectangleLinesEx(pop, 1.0f, pBorder);
         float py = pop.y + 3;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Reset View")) { DispatchCommand(app, "reset"); CloseAllPopups(app); } py += btnH + 2;
-
         bool isFs = IsWindowFullscreen();
         if (GuiCheckBox((Rectangle){ pop.x + 5, py + 2, 16.0f * app->uiScale, 16.0f * app->uiScale }, "Fullscreen", &isFs)) {
             ToggleFullscreen();
             app->uiConfig.isFullscreen = isFs;
             SaveUiConfig(CONFIG_FILENAME, &app->uiConfig);
         } py += btnH + 2;
-
         if (GuiCheckBox((Rectangle){ pop.x + 5, py + 2, 16.0f * app->uiScale, 16.0f * app->uiScale }, "Left Panel (Layers/Elems)", &app->showLeftDock)) {} py += btnH + 2;
         if (GuiCheckBox((Rectangle){ pop.x + 5, py + 2, 16.0f * app->uiScale, 16.0f * app->uiScale }, "Right Panel (Inspector)", &app->showRightDock)) {} py += btnH + 2;
         if (GuiCheckBox((Rectangle){ pop.x + 5, py + 2, 16.0f * app->uiScale, 16.0f * app->uiScale }, "Bottom Status Strip", &app->showHudPanel)) {} py += btnH + 2;
-
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "Unit Settings")) { app->showUnitWindow = !app->showUnitWindow; CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, "UI Scale")) {
             app->showScaleWindow = !app->showScaleWindow;
             app->tempUiScale = app->uiScale * 100.0f;
             CloseAllPopups(app);
         } py += btnH + 2;
-
         const char *thmDark = (app->uiConfig.uiTheme == UI_THEME_DARK) ? "[*] Theme: Dark" : "[ ] Theme: Dark";
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, thmDark)) {
             app->uiConfig.uiTheme = UI_THEME_DARK;
@@ -847,7 +859,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             app->statusMessageTimer = 2.0f;
             CloseAllPopups(app);
         } py += btnH + 2;
-
         const char *thmLight = (app->uiConfig.uiTheme == UI_THEME_LIGHT) ? "[*] Theme: Light" : "[ ] Theme: Light";
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, thmLight)) {
             app->uiConfig.uiTheme = UI_THEME_LIGHT;
@@ -857,7 +868,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             app->statusMessageTimer = 2.0f;
             CloseAllPopups(app);
         } py += btnH + 2;
-
         const char *uiOpt1 = (app->uiConfig.uiBackend == UI_BACKEND_MICROUI) ? "[*] Startup UI: microui" : "[ ] Startup UI: microui";
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, uiOpt1)) {
             app->uiConfig.uiBackend = UI_BACKEND_MICROUI;
@@ -866,7 +876,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             app->statusMessageTimer = 2.5f;
             CloseAllPopups(app);
         } py += btnH + 2;
-
         const char *uiOpt2 = (app->uiConfig.uiBackend == UI_BACKEND_RAYGUI) ? "[*] Startup UI: raygui" : "[ ] Startup UI: raygui";
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, uiOpt2)) {
             app->uiConfig.uiBackend = UI_BACKEND_RAYGUI;

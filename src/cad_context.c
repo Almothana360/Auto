@@ -1,4 +1,7 @@
 #include "cad_context.h"
+
+#include <math.h>
+
 #include "project_io.h"
 #include "layer.h"
 #include <stdio.h>
@@ -11,7 +14,6 @@
 
 static const char* ResolvePath(const char *path) {
     if (FileExists(path)) return path;
-    // Fallback: check without leading "../" if launched directly from parent dir
     if (strncmp(path, "../", 3) == 0 && FileExists(path + 3)) {
         return path + 3;
     }
@@ -47,6 +49,21 @@ void AppContext_InitFonts(AppContext *ctx) {
     SetActiveUIFont(bodyFont);
 }
 
+static void InitThemeColors(AppContext *ctx) {
+    if (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) {
+        ctx->uiAnim.panelBgR = 242.0f; ctx->uiAnim.panelBgG = 243.0f; ctx->uiAnim.panelBgB = 245.0f; ctx->uiAnim.panelBgA = 255.0f;
+        ctx->uiAnim.subpanelBgR = 230.0f; ctx->uiAnim.subpanelBgG = 233.0f; ctx->uiAnim.subpanelBgB = 238.0f; ctx->uiAnim.subpanelBgA = 255.0f;
+        ctx->uiAnim.borderR = 195.0f; ctx->uiAnim.borderG = 198.0f; ctx->uiAnim.borderB = 204.0f; ctx->uiAnim.borderA = 255.0f;
+        ctx->uiAnim.textR = 30.0f; ctx->uiAnim.textG = 30.0f; ctx->uiAnim.textB = 30.0f; ctx->uiAnim.textA = 255.0f;
+    } else {
+        ctx->uiAnim.panelBgR = 38.0f; ctx->uiAnim.panelBgG = 38.0f; ctx->uiAnim.panelBgB = 38.0f; ctx->uiAnim.panelBgA = 255.0f;
+        ctx->uiAnim.subpanelBgR = 30.0f; ctx->uiAnim.subpanelBgG = 30.0f; ctx->uiAnim.subpanelBgB = 30.0f; ctx->uiAnim.subpanelBgA = 255.0f;
+        ctx->uiAnim.borderR = 24.0f; ctx->uiAnim.borderG = 24.0f; ctx->uiAnim.borderB = 24.0f; ctx->uiAnim.borderA = 255.0f;
+        ctx->uiAnim.textR = 230.0f; ctx->uiAnim.textG = 230.0f; ctx->uiAnim.textB = 230.0f; ctx->uiAnim.textA = 255.0f;
+    }
+    ctx->uiAnim.currentThemeTarget = ctx->uiConfig.uiTheme;
+}
+
 void AppContext_Init(AppContext *ctx) {
     memset(ctx, 0, sizeof(AppContext));
     ResourceManager_Init(&ctx->resManager);
@@ -76,14 +93,25 @@ void AppContext_Init(AppContext *ctx) {
     ctx->spatialIndexDirty = true;
     ctx->activeHandle = HANDLE_NONE;
     ctx->activeHandleElementIdx = -1;
-    ctx->cmdHistory = (CommandHistory*)calloc(1, sizeof(CommandHistory));
 
+    ctx->cmdHistory = (CommandHistory*)calloc(1, sizeof(CommandHistory));
     ctx->snapToGrid = ctx->uiConfig.snapToGrid;
     ctx->snapEnabled = ctx->uiConfig.snapEnabled;
     ctx->snapThreshold = 14.0f;
+
+    ctx->tweenCtx = TweenContext_Create(128);
+    ctx->uiAnim.leftDockProgress = ctx->showLeftDock ? 1.0f : 0.0f;
+    ctx->uiAnim.rightDockProgress = ctx->showRightDock ? 1.0f : 0.0f;
+    ctx->uiAnim.hudProgress = ctx->showHudPanel ? 1.0f : 0.0f;
+    ctx->uiAnim.contextMenuProgress = 0.0f;
+    InitThemeColors(ctx);
 }
 
 void AppContext_Cleanup(AppContext *ctx) {
+    if (ctx->tweenCtx) {
+        TweenContext_Destroy(ctx->tweenCtx);
+        ctx->tweenCtx = NULL;
+    }
     SaveUiConfig(CONFIG_FILENAME, &ctx->uiConfig);
     ClearCommandHistory(ctx->cmdHistory);
     free(ctx->cmdHistory);
@@ -98,10 +126,10 @@ void AppContext_Cleanup(AppContext *ctx) {
 }
 
 void AppContext_Update(AppContext *ctx) {
+    float dt = GetFrameTime();
     if (ctx->statusMessageTimer > 0.0f) {
-        ctx->statusMessageTimer -= GetFrameTime();
+        ctx->statusMessageTimer -= dt;
     }
-
     ctx->camera.offset = (Vector2){ (float)GetScreenWidth() / 2.0f, (float)GetScreenHeight() / 2.0f };
     Vector2 mousePos = GetMousePosition();
     g_CADState.mouseScreen = mousePos;
@@ -127,4 +155,65 @@ void AppContext_Update(AppContext *ctx) {
         GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(11 * ctx->uiScale));
         ctx->prevUiScale = ctx->uiScale;
     }
+
+    // Trigger Panel Transitions via Tween
+    float targetLeft = ctx->showLeftDock ? 1.0f : 0.0f;
+    if (fabsf(ctx->uiAnim.leftDockProgress - targetLeft) > 0.001f) {
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.leftDockProgress, targetLeft, 0.20f, TweenEase_CubicOut);
+    }
+
+    float targetRight = ctx->showRightDock ? 1.0f : 0.0f;
+    if (fabsf(ctx->uiAnim.rightDockProgress - targetRight) > 0.001f) {
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.rightDockProgress, targetRight, 0.20f, TweenEase_CubicOut);
+    }
+
+    float targetHud = ctx->showHudPanel ? 1.0f : 0.0f;
+    if (fabsf(ctx->uiAnim.hudProgress - targetHud) > 0.001f) {
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.hudProgress, targetHud, 0.20f, TweenEase_CubicOut);
+    }
+
+    float targetCtx = ctx->showContextMenu ? 1.0f : 0.0f;
+    if (fabsf(ctx->uiAnim.contextMenuProgress - targetCtx) > 0.001f) {
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.contextMenuProgress, targetCtx, 0.15f, TweenEase_QuadOut);
+    }
+
+    // Trigger Color Transitions via Tween
+    if (ctx->uiAnim.currentThemeTarget != ctx->uiConfig.uiTheme) {
+        ctx->uiAnim.currentThemeTarget = ctx->uiConfig.uiTheme;
+        float targetBgR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 242.0f : 38.0f;
+        float targetBgG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 243.0f : 38.0f;
+        float targetBgB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 245.0f : 38.0f;
+
+        float targetSubR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 230.0f : 30.0f;
+        float targetSubG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 233.0f : 30.0f;
+        float targetSubB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 238.0f : 30.0f;
+
+        float targetBrdR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 195.0f : 24.0f;
+        float targetBrdG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 198.0f : 24.0f;
+        float targetBrdB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 204.0f : 24.0f;
+
+        float targetTxtR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 30.0f : 230.0f;
+        float targetTxtG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 30.0f : 230.0f;
+        float targetTxtB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 30.0f : 230.0f;
+
+        const float themeDuration = 0.25f;
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.panelBgR, targetBgR, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.panelBgG, targetBgG, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.panelBgB, targetBgB, themeDuration, TweenEase_QuadInOut);
+
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.subpanelBgR, targetSubR, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.subpanelBgG, targetSubG, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.subpanelBgB, targetSubB, themeDuration, TweenEase_QuadInOut);
+
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.borderR, targetBrdR, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.borderG, targetBrdG, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.borderB, targetBrdB, themeDuration, TweenEase_QuadInOut);
+
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.textR, targetTxtR, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.textG, targetTxtG, themeDuration, TweenEase_QuadInOut);
+        Tween_To(ctx->tweenCtx, &ctx->uiAnim.textB, targetTxtB, themeDuration, TweenEase_QuadInOut);
+    }
+
+    // Step Tween Engine
+    Tween_Update(ctx->tweenCtx, dt);
 }
