@@ -4,9 +4,11 @@
 #include "layer.h"
 #include "cad_math.h"
 #include "cad_pid.h"
+#include "flange.h"
 #include "raygui.h"
 #include <stdio.h>
 #include <string.h>
+#include <math.h>
 
 void ApplyRayguiTheme(int theme) {
     if (theme == UI_THEME_LIGHT) {
@@ -63,7 +65,7 @@ static Color GetThemePanelBg(const AppContext *app) {
         (unsigned char)app->uiAnim.panelBgR,
         (unsigned char)app->uiAnim.panelBgG,
         (unsigned char)app->uiAnim.panelBgB,
-        (unsigned char)app->uiAnim.panelBgA
+        255
     };
 }
 
@@ -72,7 +74,7 @@ static Color GetThemeSubpanelBg(const AppContext *app) {
         (unsigned char)app->uiAnim.subpanelBgR,
         (unsigned char)app->uiAnim.subpanelBgG,
         (unsigned char)app->uiAnim.subpanelBgB,
-        (unsigned char)app->uiAnim.subpanelBgA
+        255
     };
 }
 
@@ -81,7 +83,7 @@ static Color GetThemeBorder(const AppContext *app) {
         (unsigned char)app->uiAnim.borderR,
         (unsigned char)app->uiAnim.borderG,
         (unsigned char)app->uiAnim.borderB,
-        (unsigned char)app->uiAnim.borderA
+        255
     };
 }
 
@@ -90,7 +92,7 @@ static Color GetThemeTextColor(const AppContext *app) {
         (unsigned char)app->uiAnim.textR,
         (unsigned char)app->uiAnim.textG,
         (unsigned char)app->uiAnim.textB,
-        (unsigned char)app->uiAnim.textA
+        255
     };
 }
 
@@ -111,12 +113,84 @@ static void CloseAllPopups(AppContext *app) {
     app->openFunctionsMenu = false;
 }
 
+// Retained UI states for RayGUI flange dropdown pickers
+static bool s_flangeClassOpen = false;
+static bool s_flangeNpsOpen   = false;
+static float s_flangeNpsScrollOffset = 0.0f;
+
+/* Custom fully-opaque, scrollable combobox picker that fixes background bleed-through and large menus */
+static bool DrawOpaqueScrollablePicker(Rectangle bounds, const char *label, const char *items[], int itemCount, int *selectedIndex, bool *isOpen, float *scrollOffset, Color bgCol, Color borderCol, Font font, float uiScale) {
+    bool changed = false;
+    float btnH = bounds.height;
+    const char *currentLabel = (*selectedIndex >= 0 && *selectedIndex < itemCount) ? items[*selectedIndex] : label;
+
+    // Header toggle button
+    DrawRectangleRec(bounds, bgCol);
+    DrawRectangleLinesEx(bounds, 1.0f, borderCol);
+    if (GuiButton(bounds, TextFormat("%s: %s %s", label, currentLabel, *isOpen ? "[^]" : "[v]"))) {
+        *isOpen = !(*isOpen);
+    }
+
+    // Dropdown list container
+    if (*isOpen) {
+        float itemH = 22.0f * uiScale;
+        int maxVisible = 6;
+        float viewH = fminf((float)itemCount, (float)maxVisible) * itemH;
+        Rectangle popRect = { bounds.x, bounds.y + bounds.height + 2.0f, bounds.width, viewH };
+
+        // Draw solid opaque background behind the list items
+        DrawRectangleRec(popRect, bgCol);
+        DrawRectangleLinesEx(popRect, 1.5f, borderCol);
+
+        // Handle mouse wheel scrolling
+        if (CheckCollisionPointRec(GetMousePosition(), popRect)) {
+            float wheel = GetMouseWheelMove();
+            if (wheel != 0.0f) {
+                *scrollOffset -= wheel * itemH;
+            }
+        }
+        float maxScroll = fmaxf(0.0f, (itemCount * itemH) - viewH);
+        if (*scrollOffset < 0.0f) *scrollOffset = 0.0f;
+        if (*scrollOffset > maxScroll) *scrollOffset = maxScroll;
+
+        BeginScissorMode((int)popRect.x, (int)popRect.y, (int)popRect.width, (int)popRect.height);
+        for (int i = 0; i < itemCount; i++) {
+            float itemY = popRect.y + (i * itemH) - *scrollOffset;
+            if (itemY + itemH < popRect.y || itemY > popRect.y + popRect.height) continue;
+
+            Rectangle itemBtnRect = { popRect.x + 2.0f, itemY, popRect.width - (maxScroll > 0 ? 14.0f : 4.0f), itemH - 1.0f };
+            bool isCur = (i == *selectedIndex);
+            if (isCur) {
+                DrawRectangleRec(itemBtnRect, Fade(GOLD, 0.25f));
+            }
+            if (GuiButton(itemBtnRect, TextFormat("%s %s", isCur ? ">" : " ", items[i]))) {
+                *selectedIndex = i;
+                *isOpen = false;
+                changed = true;
+            }
+        }
+
+        // Draw vertical scrollbar indicator if scrollable
+        if (maxScroll > 0.0f) {
+            float scrollThumbH = (viewH / (itemCount * itemH)) * viewH;
+            float scrollThumbY = popRect.y + (*scrollOffset / maxScroll) * (viewH - scrollThumbH);
+            Rectangle scrollTrack = { popRect.x + popRect.width - 10.0f, popRect.y, 8.0f, viewH };
+            Rectangle scrollThumb = { popRect.x + popRect.width - 10.0f, scrollThumbY, 8.0f, scrollThumbH };
+            DrawRectangleRec(scrollTrack, Fade(BLACK, 0.2f));
+            DrawRectangleRec(scrollThumb, borderCol);
+        }
+        EndScissorMode();
+    }
+    return changed;
+}
+
 bool CheckGuiHover_Raygui(AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
     Vector2 mousePos = GetMousePosition();
 
     if (app->cadPid.isPaletteOpen) return true;
+    if (s_flangeClassOpen || s_flangeNpsOpen) return true;
 
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
@@ -127,8 +201,8 @@ bool CheckGuiHover_Raygui(AppContext *app) {
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
     Rectangle commandBoxRect = { ((float)winW - cmdW) / 2.0f, (float)winH - bottomStripH - cmdH - (4.0f * app->uiScale), cmdW, cmdH };
-
     if (CheckCollisionPointRec(mousePos, commandBoxRect)) return true;
+
     if (CheckCollisionPointRec(mousePos, (Rectangle){ 0, 0, (float)winW, menuBarHeight })) return true;
 
     if (app->uiAnim.hudProgress > 0.01f) {
@@ -180,6 +254,7 @@ bool CheckGuiHover_Raygui(AppContext *app) {
 void RenderAllGuiPanels_Raygui(AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
+
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
     float dockY = menuBarHeight;
@@ -310,6 +385,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             float lx = layersBox.x + 4.0f * app->uiScale;
             float bWidth = 18.0f * app->uiScale;
             bool isTargetActive = (i == app->activeLayerIndex);
+
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, isTargetActive ? ">" : " ")) {
                 app->activeLayerIndex = i;
                 g_CADState.activeLayerIndex = i;
@@ -390,7 +466,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                   (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" :
                                   (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" :
                                   (app->elements[i].type == ELEMENT_LINE ? "Line" :
-                                  (app->elements[i].type == ELEMENT_SYMBOL ? "Symbol/Inst" : "Dim"))))))));
+                                  (app->elements[i].type == ELEMENT_SYMBOL ? (strchr(app->elements[i].text, '|') ? "WN Flange" : "Symbol") : "Dim"))))))));
             const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
             char itemLabel[64];
             snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
@@ -433,7 +509,10 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
 
         if (selectedCount > 0 && selectedElementIndex >= 0) {
             GridElement *el = &app->elements[selectedElementIndex];
-            const char *title = (el->type == ELEMENT_RECT) ? "Type: Rectangle" :
+            bool isFlange = (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL);
+
+            const char *title = isFlange ? "Type: Weld Neck Flange (ASME B16.5)" :
+                                ((el->type == ELEMENT_RECT) ? "Type: Rectangle" :
                                 (el->type == ELEMENT_CIRCLE ? "Type: Circle" :
                                 (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" :
                                 (el->type == ELEMENT_ARC ? "Type: Arc" :
@@ -441,7 +520,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                 (el->type == ELEMENT_POLYLINE ? "Type: Polyline" :
                                 (el->type == ELEMENT_FREEHAND ? "Type: Freehand" :
                                 (el->type == ELEMENT_LINE ? "Type: Line" :
-                                (el->type == ELEMENT_SYMBOL ? "Type: Symbol / Inst" : "Type: Dimension"))))))));
+                                (el->type == ELEMENT_SYMBOL ? "Type: Symbol / Inst" : "Type: Dimension")))))))));
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, title); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Entity ID: %u", el->id)); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y)); inspY += btnH;
@@ -488,6 +567,75 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             }
             inspY += btnH + spacing;
 
+            // Flange-Specific Class & NPS Dropdowns (Opaque, Scrollable, Non-Bleeding)
+            if (isFlange) {
+                const FlangeDatabase *db = Flange_GetDatabase();
+                char curClass[16] = "150#";
+                char curNps[16] = "2\"";
+                char *sep = strchr(el->text, '|');
+                if (sep) {
+                    size_t cLen = (size_t)(sep - el->text);
+                    if (cLen < sizeof(curClass)) {
+                        strncpy(curClass, el->text, cLen);
+                        curClass[cLen] = '\0';
+                    }
+                    strncpy(curNps, sep + 1, sizeof(curNps) - 1);
+                    curNps[sizeof(curNps) - 1] = '\0';
+                }
+
+                int activeClassIdx = 0;
+                const char *classList[MAX_FLANGE_CLASSES];
+                for (int c = 0; c < db->classCount; c++) {
+                    classList[c] = db->classes[c].className;
+                    if (strcmp(db->classes[c].className, curClass) == 0) activeClassIdx = c;
+                }
+
+                // 1. Rating Class Dropdown Picker
+                float pickerH = 24.0f * app->uiScale;
+                Rectangle classPickerRect = { inspX, inspY, inspW, pickerH };
+                int selectedClassIdx = activeClassIdx;
+                float dummyScroll = 0.0f;
+                if (DrawOpaqueScrollablePicker(classPickerRect, "Class", classList, db->classCount, &selectedClassIdx, &s_flangeClassOpen, &dummyScroll, pBg, pBorder, bodyFont, app->uiScale)) {
+                    FlangeSpec spec;
+                    Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
+                    Flange_SetSpecBySize(&spec, db->classes[selectedClassIdx].className, curNps);
+                    el->width = spec.fw;
+                    el->height = spec.fh;
+                    el->radius = spec.ft;
+                    snprintf(el->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
+                    GetElementAABB(el);
+                    app->spatialIndexDirty = true;
+                }
+                inspY += pickerH + spacing;
+
+                // 2. NPS (OD) Scrollable Dropdown Picker
+                const char *npsList[MAX_FLANGE_SIZES];
+                int activeNpsIdx = 0;
+                for (int s = 0; s < db->classes[activeClassIdx].recordCount; s++) {
+                    npsList[s] = db->classes[activeClassIdx].records[s].nps;
+                    if (strcmp(db->classes[activeClassIdx].records[s].nps, curNps) == 0) activeNpsIdx = s;
+                }
+
+                Rectangle npsPickerRect = { inspX, inspY, inspW, pickerH };
+                int selectedNpsIdx = activeNpsIdx;
+                if (DrawOpaqueScrollablePicker(npsPickerRect, "NPS", npsList, db->classes[activeClassIdx].recordCount, &selectedNpsIdx, &s_flangeNpsOpen, &s_flangeNpsScrollOffset, pBg, pBorder, bodyFont, app->uiScale)) {
+                    FlangeSpec spec;
+                    Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
+                    Flange_SetSpecBySize(&spec, curClass, db->classes[activeClassIdx].records[selectedNpsIdx].nps);
+                    el->width = spec.fw;
+                    el->height = spec.fh;
+                    el->radius = spec.ft;
+                    snprintf(el->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
+                    GetElementAABB(el);
+                    app->spatialIndexDirty = true;
+                }
+                inspY += pickerH + spacing;
+
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Thickness (fw): %.1f mm", el->width)); inspY += btnH;
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Height (fh): %.1f mm", el->height)); inspY += btnH;
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Hub Tail (ft): %.1f mm", el->radius)); inspY += btnH + spacing;
+            }
+
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Rotation: %.1f deg", el->rotation)); inspY += btnH;
             if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->rotation, 0.0f, 360.0f)) {
                 app->spatialIndexDirty = true;
@@ -510,9 +658,23 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             }
             inspY += btnH + spacing;
 
-            GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Scale X: %.2f | Y: %.2f", el->scale.x, el->scale.y)); inspY += btnH;
-            if (GuiSliderBar((Rectangle){ inspX, inspY, (inspW - spacing) / 2.0f, btnH }, "X", "", &el->scale.x, 0.1f, 5.0f)) app->spatialIndexDirty = true;
-            if (GuiSliderBar((Rectangle){ inspX + (inspW - spacing) / 2.0f + spacing, inspY, (inspW - spacing) / 2.0f, btnH }, "Y", "", &el->scale.y, 0.1f, 5.0f)) app->spatialIndexDirty = true;
+            // SCALE SLIDER: Made strictly uneditable for flanges per specification
+            if (isFlange) {
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, "Scale: 1.00 (Locked by ASME Standard)"); inspY += btnH + spacing;
+            } else {
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Scale X: %.2f | Y: %.2f", el->scale.x, el->scale.y)); inspY += btnH;
+                if (GuiSliderBar((Rectangle){ inspX, inspY, (inspW - spacing) / 2.0f, btnH }, "X", "", &el->scale.x, 0.1f, 5.0f)) app->spatialIndexDirty = true;
+                if (GuiSliderBar((Rectangle){ inspX + (inspW - spacing) / 2.0f + spacing, inspY, (inspW - spacing) / 2.0f, btnH }, "Y", "", &el->scale.y, 0.1f, 5.0f)) app->spatialIndexDirty = true;
+                inspY += btnH + spacing;
+            }
+
+            // LINE THICKNESS SLIDER: Available for all element types
+            if (el->lineThickness <= 0.0f) el->lineThickness = 3.0f;
+            GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Line Thickness: %.1f", el->lineThickness)); inspY += btnH;
+            if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->lineThickness, 1.0f, 12.0f)) {
+                GetElementAABB(el);
+                app->spatialIndexDirty = true;
+            }
             inspY += btnH + spacing;
 
             if (el->type == ELEMENT_RECT) {
@@ -549,21 +711,17 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 float ts = (float)el->textSize;
                 if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
                 inspY += btnH + spacing;
-            } else if (el->type == ELEMENT_LINE || el->type == ELEMENT_DIMENSION || el->type == ELEMENT_POLYLINE || el->type == ELEMENT_FREEHAND || el->type == ELEMENT_ARC) {
-                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Line Thick: %.1f", el->lineThickness)); inspY += btnH;
-                if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->lineThickness, 1.0f, 10.0f)) app->spatialIndexDirty = true;
+            } else if (el->type == ELEMENT_DIMENSION) {
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Tick Thick: %.1f", el->tickThickness)); inspY += btnH;
+                GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->tickThickness, 1.0f, 10.0f);
                 inspY += btnH + spacing;
-                if (el->type == ELEMENT_DIMENSION) {
-                    GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Tick Thick: %.1f", el->tickThickness)); inspY += btnH;
-                    GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->tickThickness, 1.0f, 10.0f);
-                    inspY += btnH + spacing;
-                    GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Text Size: %d", el->textSize)); inspY += btnH;
-                    float ts = (float)el->textSize;
-                    if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
-                    inspY += btnH + spacing;
-                }
+                GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Text Size: %d", el->textSize)); inspY += btnH;
+                float ts = (float)el->textSize;
+                if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
+                inspY += btnH + spacing;
             }
 
+            // COLOR PALETTE
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, el->useCustomColor ? "Color: Custom" : "Color: Layer"); inspY += btnH;
             float cW = (inspW - 3 * spacing) / 4.0f;
             const char *colorNames[] = { "Sky", "Lime", "Orange", "Purp", "Red", "Gold", "Gray", "Black" };
@@ -576,12 +734,14 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     cmd.data.transform.index = selectedElementIndex;
                     cmd.data.transform.before = *el;
                     el->color = PALETTE[p];
+                    el->color.a = 255;
                     el->useCustomColor = true;
                     cmd.data.transform.after = *el;
                     ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                 }
             }
             inspY += (btnH + spacing) * 2;
+
             if (el->useCustomColor && GuiButton((Rectangle){ inspX, inspY, inspW, btnH }, "Reset to Layer Color")) {
                 Command cmd = { 0 };
                 cmd.type = CMD_TRANSFORM;
@@ -918,5 +1078,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         CloseAllPopups(app);
         app->layerRenameEditMode = false;
         app->noteTextEditMode = false;
+        s_flangeClassOpen = false;
+        s_flangeNpsOpen = false;
     }
 }

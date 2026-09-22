@@ -74,6 +74,7 @@ static Color ParseColorJSON(const cJSON *arr, Color defaultVal) {
     if (g && (g->type & 0xFF) == cJSON_Number) res.g = (unsigned char)g->valueint;
     if (b && (b->type & 0xFF) == cJSON_Number) res.b = (unsigned char)b->valueint;
     if (a && (a->type & 0xFF) == cJSON_Number) res.a = (unsigned char)a->valueint;
+    if (res.a == 0) res.a = 255;
     return res;
 }
 
@@ -104,27 +105,32 @@ static bool WriteStringToFile(const char *filename, const char *str) {
     return written == len;
 }
 
-static char *ReadStringFromFile(const char *filename) {
+static cJSON *ParseJsonFile(const char *filename) {
     FILE *f = fopen(filename, "rb");
     if (!f) return NULL;
     fseek(f, 0, SEEK_END);
     long sz = ftell(f);
     fseek(f, 0, SEEK_SET);
-    if (sz < 0) { fclose(f); return NULL; }
-    char *buf = (char*)malloc(sz + 1);
+    if (sz <= 0) { fclose(f); return NULL; }
+    char *buf = (char*)malloc((size_t)sz + 1);
     if (!buf) { fclose(f); return NULL; }
-    size_t read_bytes = fread(buf, 1, sz, f);
+    size_t read_bytes = fread(buf, 1, (size_t)sz, f);
     buf[read_bytes] = '\0';
     fclose(f);
-    return buf;
+
+    cJSON *parsed = cJSON_Parse(buf);
+    free(buf);
+    return parsed;
 }
 
 void SaveProject(const char *filename, GridElement *elements, int elementCount, Layer *layers, int layerCount) {
     const char *targetFilename = (filename && strstr(filename, ".dat")) ? PROJECT_FILENAME : (filename ? filename : PROJECT_FILENAME);
     SyncLayersWithElements(layers, layerCount, elements, elementCount);
+
     cJSON *root = cJSON_CreateObject();
     cJSON_AddItemToObject(root, "schema_version", cJSON_CreateNumber(CURRENT_SCHEMA_VERSION));
     cJSON_AddItemToObject(root, "layer_count", cJSON_CreateNumber(layerCount));
+
     cJSON *layersArr = cJSON_CreateArray();
     for (int i = 0; i < layerCount; i++) {
         cJSON *layerObj = cJSON_CreateObject();
@@ -134,6 +140,7 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
         cJSON_AddItemToObject(layerObj, "locked", cJSON_CreateBool(layers[i].locked));
         cJSON_AddItemToObject(layerObj, "defaultColor", CreateColorJSON(layers[i].defaultColor));
         cJSON_AddItemToObject(layerObj, "renderOrder", cJSON_CreateNumber(layers[i].renderOrder));
+
         cJSON *entArr = cJSON_CreateArray();
         for (int k = 0; k < layers[i].entityCount; k++) {
             cJSON_AddItemToArray(entArr, cJSON_CreateNumber(layers[i].entityIds[k]));
@@ -142,6 +149,7 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
         cJSON_AddItemToArray(layersArr, layerObj);
     }
     cJSON_AddItemToObject(root, "layers", layersArr);
+
     cJSON_AddItemToObject(root, "element_count", cJSON_CreateNumber(elementCount));
     cJSON *elemsArr = cJSON_CreateArray();
     for (int i = 0; i < elementCount; i++) {
@@ -152,10 +160,12 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
         cJSON_AddItemToObject(elObj, "pos", CreateVector2JSON(el->pos));
         cJSON_AddItemToObject(elObj, "rotation", cJSON_CreateNumber(el->rotation));
         cJSON_AddItemToObject(elObj, "scale", CreateVector2JSON(el->scale));
+
         cJSON *bboxObj = cJSON_CreateObject();
         cJSON_AddItemToObject(bboxObj, "min", CreateVector2JSON(el->bbox.min));
         cJSON_AddItemToObject(bboxObj, "max", CreateVector2JSON(el->bbox.max));
         cJSON_AddItemToObject(elObj, "bbox", bboxObj);
+
         cJSON_AddItemToObject(elObj, "width", cJSON_CreateNumber(el->width));
         cJSON_AddItemToObject(elObj, "height", cJSON_CreateNumber(el->height));
         cJSON_AddItemToObject(elObj, "radius", cJSON_CreateNumber(el->radius));
@@ -163,17 +173,17 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
         cJSON_AddItemToObject(elObj, "selected", cJSON_CreateBool(el->selected));
         cJSON_AddItemToObject(elObj, "useCustomColor", cJSON_CreateBool(el->useCustomColor));
         cJSON_AddItemToObject(elObj, "color", CreateColorJSON(el->color));
+        cJSON_AddItemToObject(elObj, "lineThickness", cJSON_CreateNumber(el->lineThickness));
+
         switch (el->type) {
             case ELEMENT_LINE:
                 cJSON_AddItemToObject(elObj, "p1", CreateVector2JSON(el->p1));
                 cJSON_AddItemToObject(elObj, "p2", CreateVector2JSON(el->p2));
-                cJSON_AddItemToObject(elObj, "lineThickness", cJSON_CreateNumber(el->lineThickness));
                 break;
             case ELEMENT_DIMENSION:
                 cJSON_AddItemToObject(elObj, "p1", CreateVector2JSON(el->p1));
                 cJSON_AddItemToObject(elObj, "p2", CreateVector2JSON(el->p2));
                 cJSON_AddItemToObject(elObj, "dimPos", CreateVector2JSON(el->dimPos));
-                cJSON_AddItemToObject(elObj, "lineThickness", cJSON_CreateNumber(el->lineThickness));
                 cJSON_AddItemToObject(elObj, "tickThickness", cJSON_CreateNumber(el->tickThickness));
                 cJSON_AddItemToObject(elObj, "textSize", cJSON_CreateNumber(el->textSize));
                 break;
@@ -183,7 +193,6 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
                 cJSON_AddItemToObject(elObj, "p3", CreateVector2JSON(el->p3));
                 cJSON_AddItemToObject(elObj, "startAngle", cJSON_CreateNumber(el->startAngle));
                 cJSON_AddItemToObject(elObj, "endAngle", cJSON_CreateNumber(el->endAngle));
-                cJSON_AddItemToObject(elObj, "lineThickness", cJSON_CreateNumber(el->lineThickness));
                 break;
             case ELEMENT_ELLIPSE:
                 cJSON_AddItemToObject(elObj, "radiusX", cJSON_CreateNumber(el->radiusX));
@@ -192,7 +201,6 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
             case ELEMENT_POLYLINE:
             case ELEMENT_FREEHAND: {
                 cJSON_AddItemToObject(elObj, "pointCount", cJSON_CreateNumber(el->pointCount));
-                cJSON_AddItemToObject(elObj, "lineThickness", cJSON_CreateNumber(el->lineThickness));
                 cJSON *pts = cJSON_CreateArray();
                 int cnt = (el->pointCount <= MAX_POLYLINE_POINTS) ? el->pointCount : MAX_POLYLINE_POINTS;
                 for (int p = 0; p < cnt; p++) {
@@ -207,12 +215,16 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
                 cJSON_AddItemToObject(elObj, "showArrow", cJSON_CreateBool(el->showArrow));
                 cJSON_AddItemToObject(elObj, "textSize", cJSON_CreateNumber(el->textSize));
                 break;
+            case ELEMENT_SYMBOL:
+                cJSON_AddItemToObject(elObj, "text", cJSON_CreateString(el->text));
+                break;
             default:
                 break;
         }
         cJSON_AddItemToArray(elemsArr, elObj);
     }
     cJSON_AddItemToObject(root, "elements", elemsArr);
+
     char *jsonStr = cJSON_Print(root);
     if (jsonStr) {
         WriteStringToFile(targetFilename, jsonStr);
@@ -223,20 +235,19 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
 
 int LoadProject(const char *filename, GridElement *elements, int *elementCount, Layer *layers, int *layerCount) {
     const char *targetFilename = filename;
-    char *jsonRaw = NULL;
+    cJSON *root = NULL;
     if (targetFilename) {
-        jsonRaw = ReadStringFromFile(targetFilename);
+        root = ParseJsonFile(targetFilename);
     }
-    if (!jsonRaw && targetFilename && strcmp(targetFilename, LEGACY_PROJECT_FILENAME) == 0) {
-        jsonRaw = ReadStringFromFile(PROJECT_FILENAME);
+    if (!root && targetFilename && strcmp(targetFilename, LEGACY_PROJECT_FILENAME) == 0) {
+        root = ParseJsonFile(PROJECT_FILENAME);
     }
-    if (!jsonRaw) return 0;
-    cJSON *root = cJSON_Parse(jsonRaw);
-    free(jsonRaw);
     if (!root) return 0;
+
     for (int i = 0; i < *layerCount; i++) {
         Layer_Free(&layers[i]);
     }
+
     cJSON *layersArr = cJSON_GetObjectItem(root, "layers");
     if (layersArr && (layersArr->type & 0xFF) == cJSON_Array) {
         int lSz = cJSON_GetArraySize(layersArr);
@@ -248,12 +259,14 @@ int LoadProject(const char *filename, GridElement *elements, int *elementCount, 
             unsigned int lid = (unsigned int)GetJSONNumber(lObj, "id", 0);
             if (lid == 0) lid = GenerateLayerID();
             if (lid >= GenerateLayerID()) SetNextLayerID(lid + 1);
+
             const char *name = GetJSONString(lObj, "name", "Layer");
             Color col = ParseColorJSON(cJSON_GetObjectItem(lObj, "defaultColor"), ParseColorJSON(cJSON_GetObjectItem(lObj, "colorTag"), SKYBLUE));
             int order = (int)GetJSONNumber(lObj, "renderOrder", i);
             Layer_Init(&layers[i], lid, name, col, order);
             layers[i].visible = GetJSONBool(lObj, "visible", true);
             layers[i].locked = GetJSONBool(lObj, "locked", false);
+
             cJSON *entArr = cJSON_GetObjectItem(lObj, "entityIds");
             if (entArr && (entArr->type & 0xFF) == cJSON_Array) {
                 int idCount = cJSON_GetArraySize(entArr);
@@ -268,6 +281,7 @@ int LoadProject(const char *filename, GridElement *elements, int *elementCount, 
     } else {
         InitDefaultLayers(layers, layerCount);
     }
+
     cJSON *elemsArr = cJSON_GetObjectItem(root, "elements");
     int count = 0;
     if (elemsArr && (elemsArr->type & 0xFF) == cJSON_Array) {
@@ -278,14 +292,17 @@ int LoadProject(const char *filename, GridElement *elements, int *elementCount, 
             if (!elObj) continue;
             GridElement *el = &elements[count++];
             memset(el, 0, sizeof(GridElement));
+
             unsigned int parsedId = (unsigned int)GetJSONNumber(elObj, "id", 0);
             el->id = (parsedId > 0) ? parsedId : GenerateEntityID();
             if (el->id >= GenerateEntityID()) SetNextEntityID(el->id + 1);
+
             const char *typeStr = GetJSONString(elObj, "type", "ELEMENT_RECT");
             el->type = StringToElementType(typeStr);
             el->pos = ParseVector2JSON(cJSON_GetObjectItem(elObj, "pos"), (Vector2){0, 0});
             el->scale = ParseVector2JSON(cJSON_GetObjectItem(elObj, "scale"), (Vector2){1.0f, 1.0f});
             if (el->scale.x == 0.0f && el->scale.y == 0.0f) el->scale = (Vector2){1.0f, 1.0f};
+
             el->width = (float)GetJSONNumber(elObj, "width", 80.0);
             el->height = (float)GetJSONNumber(elObj, "height", 60.0);
             el->radius = (float)GetJSONNumber(elObj, "radius", 40.0);
@@ -294,7 +311,7 @@ int LoadProject(const char *filename, GridElement *elements, int *elementCount, 
             el->selected = GetJSONBool(elObj, "selected", false);
             el->useCustomColor = GetJSONBool(elObj, "useCustomColor", false);
             el->color = ParseColorJSON(cJSON_GetObjectItem(elObj, "color"), WHITE);
-            el->lineThickness = (float)GetJSONNumber(elObj, "lineThickness", 2.0);
+            el->lineThickness = (float)GetJSONNumber(elObj, "lineThickness", 3.0); // Default 3
             el->tickThickness = (float)GetJSONNumber(elObj, "tickThickness", 2.0);
             el->textSize = (int)GetJSONNumber(elObj, "textSize", 14);
             el->startAngle = (float)GetJSONNumber(elObj, "startAngle", 0.0);
@@ -307,9 +324,11 @@ int LoadProject(const char *filename, GridElement *elements, int *elementCount, 
             el->dimPos = ParseVector2JSON(cJSON_GetObjectItem(elObj, "dimPos"), (Vector2){0, 0});
             el->arrowTarget = ParseVector2JSON(cJSON_GetObjectItem(elObj, "arrowTarget"), (Vector2){0, 0});
             el->showArrow = GetJSONBool(elObj, "showArrow", false);
+
             const char *txt = GetJSONString(elObj, "text", "");
             strncpy(el->text, txt, TEXT_NOTE_LEN - 1);
             el->text[TEXT_NOTE_LEN - 1] = '\0';
+
             cJSON *ptsArr = cJSON_GetObjectItem(elObj, "points");
             if (ptsArr && (ptsArr->type & 0xFF) == cJSON_Array) {
                 int pSz = cJSON_GetArraySize(ptsArr);
@@ -359,6 +378,7 @@ UiConfig LoadUiConfig(const char *filename) {
         .uiBackend = UI_BACKEND_MICROUI,
         .uiTheme = UI_THEME_DARK
     };
+
     FILE *file = fopen(filename, "r");
     if (file != NULL) {
         char line[128];

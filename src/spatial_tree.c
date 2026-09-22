@@ -13,7 +13,6 @@ static void QuadTree_InitNode(SpatialQuadTree *tree, int nodeIdx, AABB bounds) {
 
 static void QuadTree_Subdivide(SpatialQuadTree *tree, int nodeIdx) {
     if (tree->nodeCount + 4 > QUADTREE_MAX_NODES) return;
-
     Vector2 min = tree->nodes[nodeIdx].bounds.min;
     Vector2 max = tree->nodes[nodeIdx].bounds.max;
     Vector2 mid = { (min.x + max.x) * 0.5f, (min.y + max.y) * 0.5f };
@@ -75,6 +74,7 @@ static void QuadTree_Insert(SpatialQuadTree *tree, int nodeIdx, int elementIdx, 
                 }
                 if (!pushed) tempIndices[remaining++] = existingIdx;
             }
+
             memcpy(tree->nodes[nodeIdx].elementIndices, tempIndices, sizeof(int) * remaining);
             tree->nodes[nodeIdx].count = remaining;
 
@@ -139,6 +139,21 @@ static bool CheckSingleElementHit(const GridElement *el, Vector2 worldPos) {
         float dist = Vector2Distance(worldPos, el->pos);
         return (fabsf(dist - el->radius) < 12.0f);
     } else if (el->type == ELEMENT_SYMBOL) {
+        if (strchr(el->text, '|') != NULL) {
+            float fw = el->width * el->scale.x;
+            float fh = el->height * el->scale.y;
+            float ft = el->radius * el->scale.x;
+            // Flange rectangle hit test
+            if (localPos.x >= 0.0f && localPos.x <= fw &&
+                localPos.y >= -fh * 0.5f && localPos.y <= fh * 0.5f) {
+                return true;
+            }
+            // Tail centerline hit test
+            if (localPos.x >= (fw - ft) && localPos.x <= fw && fabsf(localPos.y) <= 8.0f) {
+                return true;
+            }
+            return false;
+        }
         return (Vector2Distance(worldPos, el->pos) < 20.0f * fmaxf(el->scale.x, el->scale.y));
     }
     return false;
@@ -151,12 +166,10 @@ static void HitTestElement_Spatial_Rec(const SpatialQuadTree *tree, int nodeIdx,
     for (int i = 0; i < node->count; i++) {
         int idx = node->elementIndices[i];
         if (idx <= *bestHit) continue;
-
         int lIdx = elements[idx].layerIndex;
         if (lIdx >= 0 && lIdx < layerCount) {
             if (!layers[lIdx].visible || layers[lIdx].locked) continue;
         }
-
         if (CheckSingleElementHit(&elements[idx], worldPos)) {
             if (idx > *bestHit) *bestHit = idx;
         }
@@ -189,11 +202,9 @@ static void GetClosestSnapPoint_Spatial_Rec(const SpatialQuadTree *tree, int nod
     for (int i = 0; i < node->count; i++) {
         int idx = node->elementIndices[i];
         if (!layers[elements[idx].layerIndex].visible) continue;
-
         Vector2 pts[MAX_POLYLINE_POINTS];
         int count = 0;
         GetElementSnapPoints(&elements[idx], pts, &count);
-
         for (int p = 0; p < count; p++) {
             float dx = mousePos.x - pts[p].x;
             float dy = mousePos.y - pts[p].y;
@@ -220,13 +231,11 @@ static void GetClosestSnapPoint_Spatial_Rec(const SpatialQuadTree *tree, int nod
 Vector2 GetClosestSnapPoint_Spatial(const SpatialQuadTree *tree, Vector2 mousePos, const GridElement *elements, int count, const Layer *layers, float snapRadius) {
     Vector2 bestPoint = mousePos;
     if (count <= 0 || tree->nodeCount == 0) return bestPoint;
-
     float minSqDist = snapRadius * snapRadius;
     AABB queryBox = {
         .min = { mousePos.x - snapRadius, mousePos.y - snapRadius },
         .max = { mousePos.x + snapRadius, mousePos.y + snapRadius }
     };
-
     GetClosestSnapPoint_Spatial_Rec(tree, 0, elements, layers, mousePos, queryBox, &minSqDist, &bestPoint);
     return bestPoint;
 }
