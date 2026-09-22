@@ -1,8 +1,3 @@
-Following the previous, How can we split the cad_editor.c to minimize the change that happens to the program when altering one aspect of it?
-
-Please provide each file for the fix in full code, with the fix without altering any existing code and systems.
-
-Following the previous, cannot we just split the file into modules like a camera module that has all the functions associated with the camera handling and other modules with the same idea.
-
-Please provide each file for the fix in full code, with the fix without altering any existing code and systems.
-
+Act as super professional senior no bugs no glitches ultimate senior programmer, with zero percent chance of bug introducing and producing, with high intelligence over the whole programming field, read these source file carefully then add the following feature and fix the following bugs, where all file effected with new feature or bug fix must be presented in full code without altering to other code except what is needed, with very low to zero percent of breaking existing feature or introducing bugs, also please check all header files that you need from the provided /header folder or from the standard libraries of c, also check all the dots ".", all the arrows "->" for the stack and heap variables, also check your code and try to debug it before giving it to me.
+The following features that to be added are:
+- make a graphics library and an input library so that we can use multiple render and media backends without altering the code so much in the feature.
