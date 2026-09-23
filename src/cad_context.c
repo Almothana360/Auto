@@ -24,7 +24,6 @@ void AppContext_InitFonts(AppContext *ctx) {
     int titleSize = (int)(16 * ctx->uiScale);
     int bodySize  = (int)(14 * ctx->uiScale);
     int noteSize  = (int)(24 * ctx->uiScale);
-
     if (menuSize < 12) menuSize = 12;
     if (titleSize < 12) titleSize = 12;
     if (bodySize < 12) bodySize = 12;
@@ -67,16 +66,13 @@ void AppContext_Init(AppContext *ctx) {
     memset(ctx, 0, sizeof(AppContext));
     ResourceManager_Init(&ctx->resManager);
     ctx->uiConfig = LoadUiConfig(CONFIG_FILENAME);
-
     ctx->camera.target = (Vector2){ 0.0f, 0.0f };
     ctx->camera.offset = (Vector2){ (float)SCREEN_WIDTH / 2.0f, (float)SCREEN_HEIGHT / 2.0f };
     ctx->camera.zoom = 1.0f;
     ctx->gridSpacing = 50.0f;
-
     ctx->uiScale = ctx->uiConfig.uiScale;
     ctx->prevUiScale = ctx->uiConfig.uiScale;
     ctx->tempUiScale = ctx->uiConfig.uiScale * 100.0f;
-
     ctx->showHudPanel = true;
     ctx->showLeftDock = true;
     ctx->showRightDock = true;
@@ -93,7 +89,6 @@ void AppContext_Init(AppContext *ctx) {
     ctx->cachedAABBs = (AABB*)calloc(MAX_ELEMENTS, sizeof(AABB));
     ctx->spatialTree = (SpatialQuadTree*)calloc(1, sizeof(SpatialQuadTree));
     ctx->spatialIndexDirty = true;
-
     ctx->activeHandle = HANDLE_NONE;
     ctx->activeHandleElementIdx = -1;
 
@@ -139,7 +134,6 @@ void AppContext_Update(AppContext *ctx) {
     }
 
     ctx->camera.offset = (Vector2){ (float)GetScreenWidth() / 2.0f, (float)GetScreenHeight() / 2.0f };
-
     Vector2 mousePos = GetMousePosition();
     g_CADState.mouseScreen = mousePos;
     g_CADState.mouseWorld = GetScreenToWorld2D(mousePos, ctx->camera);
@@ -162,6 +156,12 @@ void AppContext_Update(AppContext *ctx) {
         Font bodyFont = ResourceManager_GetFont(&ctx->resManager, FONT_SLOT_BODY);
         GuiSetFont(bodyFont);
         GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(11 * ctx->uiScale));
+
+        // Dynamically update the RayGUI icon scale proportionally with uiScale
+        int iconScale = (int)roundf(ctx->uiScale);
+        if (iconScale < 1) iconScale = 1;
+        GuiSetIconScale(iconScale);
+
         ctx->prevUiScale = ctx->uiScale;
     }
 

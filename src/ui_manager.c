@@ -1,7 +1,10 @@
 #include "ui_manager.h"
 #include <stddef.h>
+#include <math.h>
+
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
+
 #include "gui_panels.h"
 #include "gui_panels_raygui.h"
 #include "render_utils.h"
@@ -16,6 +19,12 @@ void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
     SetActiveUIFont(bodyFont);
     GuiSetFont(bodyFont);
     GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(11 * app->uiScale));
+
+    // Scale RayGUI icons dynamically with the initial UI scale
+    int iconScale = (int)roundf(app->uiScale);
+    if (iconScale < 1) iconScale = 1;
+    GuiSetIconScale(iconScale);
+
     ApplyRayguiTheme(app->uiConfig.uiTheme);
 }
 
@@ -32,7 +41,6 @@ void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
 
     int btnMap[3] = { MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE };
     int muBtnMap[3] = { MU_MOUSE_LEFT, MU_MOUSE_RIGHT, MU_MOUSE_MIDDLE };
-
     for (int b = 0; b < 3; b++) {
         if (IsMouseButtonPressed(btnMap[b])) mu_input_mousedown(mu_ctx, (int)mousePos.x, (int)mousePos.y, muBtnMap[b]);
         if (IsMouseButtonReleased(btnMap[b])) mu_input_mouseup(mu_ctx, (int)mousePos.x, (int)mousePos.y, muBtnMap[b]);
@@ -77,6 +85,7 @@ bool UIManager_UpdateAndRenderPanels(AppContext *app, mu_Context *mu_ctx) {
         overUI = CheckGuiHover_Raygui(app);
         if (CheckCollisionPointRec(mousePos, commandBoxRect)) overUI = true;
     }
+
     return overUI;
 }
 
