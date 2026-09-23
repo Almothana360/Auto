@@ -113,82 +113,16 @@ static void CloseAllPopups(AppContext *app) {
     app->openFunctionsMenu = false;
 }
 
-// Retained UI states for RayGUI flange dropdown pickers
-static bool s_flangeClassOpen = false;
-static bool s_flangeNpsOpen   = false;
-static float s_flangeNpsScrollOffset = 0.0f;
-
-/* Custom 100% opaque, scrollable combobox picker that completely prevents background transparency */
-static bool DrawOpaqueScrollablePicker(Rectangle bounds, const char *label, const char *items[], int itemCount, int *selectedIndex, bool *isOpen, float *scrollOffset, Color bgCol, Color borderCol, Font font, float uiScale) {
-    (void)font;
-    bool changed = false;
-    const char *currentLabel = (*selectedIndex >= 0 && *selectedIndex < itemCount) ? items[*selectedIndex] : label;
-
-    // Header toggle button - Draw opaque backing first
-    Color solidBg = { bgCol.r, bgCol.g, bgCol.b, 255 };
-    DrawRectangleRec(bounds, solidBg);
-    DrawRectangleLinesEx(bounds, 1.0f, borderCol);
-
-    if (GuiButton(bounds, TextFormat("%s: %s %s", label, currentLabel, *isOpen ? "[^]" : "[v]"))) {
-        *isOpen = !(*isOpen);
-    }
-
-    // Dropdown list container rendered with full 255 opacity
-    if (*isOpen) {
-        float itemH = 22.0f * uiScale;
-        int maxVisible = 6;
-        float viewH = fminf((float)itemCount, (float)maxVisible) * itemH;
-        Rectangle popRect = { bounds.x, bounds.y + bounds.height + 2.0f, bounds.width, viewH };
-
-        // 100% Solid Opaque Backing Rectangles
-        DrawRectangleRec(popRect, solidBg);
-        DrawRectangleLinesEx(popRect, 1.5f, borderCol);
-
-        // Handle mouse wheel scrolling
-        if (CheckCollisionPointRec(GetMousePosition(), popRect)) {
-            float wheel = GetMouseWheelMove();
-            if (wheel != 0.0f) {
-                *scrollOffset -= wheel * itemH;
-            }
-        }
-
-        float maxScroll = fmaxf(0.0f, (itemCount * itemH) - viewH);
-        if (*scrollOffset < 0.0f) *scrollOffset = 0.0f;
-        if (*scrollOffset > maxScroll) *scrollOffset = maxScroll;
-
-        BeginScissorMode((int)popRect.x, (int)popRect.y, (int)popRect.width, (int)popRect.height);
-        for (int i = 0; i < itemCount; i++) {
-            float itemY = popRect.y + (i * itemH) - *scrollOffset;
-            if (itemY + itemH < popRect.y || itemY > popRect.y + popRect.height) continue;
-            Rectangle itemBtnRect = { popRect.x + 2.0f, itemY, popRect.width - (maxScroll > 0 ? 14.0f : 4.0f), itemH - 1.0f };
-
-            // Draw solid opaque base for every item button to guarantee zero bleed-through
-            DrawRectangleRec(itemBtnRect, solidBg);
-
-            bool isCur = (i == *selectedIndex);
-            if (isCur) {
-                DrawRectangleRec(itemBtnRect, Fade(GOLD, 0.35f));
-            }
-            if (GuiButton(itemBtnRect, TextFormat("%s %s", isCur ? ">" : " ", items[i]))) {
-                *selectedIndex = i;
-                *isOpen = false;
-                changed = true;
-            }
-        }
-
-        // Draw vertical scrollbar indicator if scrollable
-        if (maxScroll > 0.0f) {
-            float scrollThumbH = (viewH / (itemCount * itemH)) * viewH;
-            float scrollThumbY = popRect.y + (*scrollOffset / maxScroll) * (viewH - scrollThumbH);
-            Rectangle scrollTrack = { popRect.x + popRect.width - 10.0f, popRect.y, 8.0f, viewH };
-            Rectangle scrollThumb = { popRect.x + popRect.width - 10.0f, scrollThumbY, 8.0f, scrollThumbH };
-            DrawRectangleRec(scrollTrack, Fade(BLACK, 0.4f));
-            DrawRectangleRec(scrollThumb, borderCol);
-        }
-        EndScissorMode();
-    }
-    return changed;
-}
+// Retained UI states for RayGUI GuiDropdownBox controls
+static bool s_flangeClassEditMode = false;
+static bool s_flangeNpsEditMode   = false;
+static Rectangle s_flangeClassBounds = { 0 };
+static Rectangle s_flangeNpsBounds   = { 0 };
+static int s_flangeClassActive = 0;
+static int s_flangeNpsActive   = 0;
+static char s_flangeClassTextBuf[512] = { 0 };
+static char s_flangeNpsTextBuf[1024]  = { 0 };
+static int s_flangeLastSelectedIdx = -1;
 
 bool CheckGuiHover_Raygui(AppContext *app) {
     int winW = GetScreenWidth();
@@ -196,7 +130,24 @@ bool CheckGuiHover_Raygui(AppContext *app) {
     Vector2 mousePos = GetMousePosition();
 
     if (app->cadPid.isPaletteOpen) return true;
-    if (s_flangeClassOpen || s_flangeNpsOpen) return true;
+
+    // Check bounds for open GuiDropdownBox menus
+    if (s_flangeClassEditMode) {
+        const FlangeDatabase *db = Flange_GetDatabase();
+        float fullHeight = s_flangeClassBounds.height * (float)(db->classCount + 1);
+        Rectangle dropRect = { s_flangeClassBounds.x, s_flangeClassBounds.y, s_flangeClassBounds.width, fullHeight };
+        if (CheckCollisionPointRec(mousePos, dropRect)) return true;
+    }
+    if (s_flangeNpsEditMode) {
+        const FlangeDatabase *db = Flange_GetDatabase();
+        int recordCount = 0;
+        if (s_flangeClassActive >= 0 && s_flangeClassActive < db->classCount) {
+            recordCount = db->classes[s_flangeClassActive].recordCount;
+        }
+        float fullHeight = s_flangeNpsBounds.height * (float)(recordCount + 1);
+        Rectangle dropRect = { s_flangeNpsBounds.x, s_flangeNpsBounds.y, s_flangeNpsBounds.width, fullHeight };
+        if (CheckCollisionPointRec(mousePos, dropRect)) return true;
+    }
 
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
@@ -483,6 +434,9 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
     int selectedCount = CountSelectedElements(app->elements, app->elementCount);
     int selectedElementIndex = GetFirstSelectedIndex(app->elements, app->elementCount);
 
+    bool hasFlangeDropdown = false;
+    GridElement *dropdownEl = NULL;
+
     if (!app->showRightDock && app->uiAnim.rightDockProgress <= 0.05f) {
         Rectangle rToggleRect = { winW - 32.0f * app->uiScale, dockY + 4, 28.0f * app->uiScale, 24.0f * app->uiScale };
         DrawRectangleRec(rToggleRect, pBg);
@@ -511,6 +465,12 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         if (selectedCount > 0 && selectedElementIndex >= 0) {
             GridElement *el = &app->elements[selectedElementIndex];
             bool isFlange = (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL);
+
+            if (selectedElementIndex != s_flangeLastSelectedIdx) {
+                s_flangeClassEditMode = false;
+                s_flangeNpsEditMode = false;
+                s_flangeLastSelectedIdx = selectedElementIndex;
+            }
 
             const char *title = isFlange ? "Type: Weld Neck Flange (ASME B16.5)" :
                                 ((el->type == ELEMENT_RECT) ? "Type: Rectangle" :
@@ -569,7 +529,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             }
             inspY += btnH + spacing;
 
-            // Flange-Specific Class & NPS Dropdowns (Non-transparent, solid background)
+            // Flange-Specific Class & NPS GuiDropdownBox Layout Slots
             if (isFlange) {
                 const FlangeDatabase *db = Flange_GetDatabase();
                 char curClass[16] = "150#";
@@ -585,52 +545,51 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     curNps[sizeof(curNps) - 1] = '\0';
                 }
 
+                // Match active indices
                 int activeClassIdx = 0;
-                const char *classList[MAX_FLANGE_CLASSES];
                 for (int c = 0; c < db->classCount; c++) {
-                    classList[c] = db->classes[c].className;
-                    if (strcmp(db->classes[c].className, curClass) == 0) activeClassIdx = c;
+                    if (strcmp(db->classes[c].className, curClass) == 0) {
+                        activeClassIdx = c;
+                        break;
+                    }
                 }
-
-                // 1. Rating Class Dropdown Picker
-                float pickerH = 24.0f * app->uiScale;
-                Rectangle classPickerRect = { inspX, inspY, inspW, pickerH };
-                int selectedClassIdx = activeClassIdx;
-                float dummyScroll = 0.0f;
-                if (DrawOpaqueScrollablePicker(classPickerRect, "Class", classList, db->classCount, &selectedClassIdx, &s_flangeClassOpen, &dummyScroll, pBg, pBorder, bodyFont, app->uiScale)) {
-                    FlangeSpec spec;
-                    Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
-                    Flange_SetSpecBySize(&spec, db->classes[selectedClassIdx].className, curNps);
-                    el->width = spec.fw;
-                    el->height = spec.fh;
-                    el->radius = spec.ft;
-                    snprintf(el->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
-                    GetElementAABB(el);
-                    app->spatialIndexDirty = true;
-                }
-                inspY += pickerH + spacing;
-
-                // 2. NPS (OD) Scrollable Dropdown Picker
-                const char *npsList[MAX_FLANGE_SIZES];
                 int activeNpsIdx = 0;
                 for (int s = 0; s < db->classes[activeClassIdx].recordCount; s++) {
-                    npsList[s] = db->classes[activeClassIdx].records[s].nps;
-                    if (strcmp(db->classes[activeClassIdx].records[s].nps, curNps) == 0) activeNpsIdx = s;
+                    if (strcmp(db->classes[activeClassIdx].records[s].nps, curNps) == 0) {
+                        activeNpsIdx = s;
+                        break;
+                    }
                 }
-                Rectangle npsPickerRect = { inspX, inspY, inspW, pickerH };
-                int selectedNpsIdx = activeNpsIdx;
-                if (DrawOpaqueScrollablePicker(npsPickerRect, "NPS", npsList, db->classes[activeClassIdx].recordCount, &selectedNpsIdx, &s_flangeNpsOpen, &s_flangeNpsScrollOffset, pBg, pBorder, bodyFont, app->uiScale)) {
-                    FlangeSpec spec;
-                    Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
-                    Flange_SetSpecBySize(&spec, curClass, db->classes[activeClassIdx].records[selectedNpsIdx].nps);
-                    el->width = spec.fw;
-                    el->height = spec.fh;
-                    el->radius = spec.ft;
-                    snprintf(el->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
-                    GetElementAABB(el);
-                    app->spatialIndexDirty = true;
+
+                if (!s_flangeClassEditMode) s_flangeClassActive = activeClassIdx;
+                if (!s_flangeNpsEditMode) s_flangeNpsActive = activeNpsIdx;
+
+                // Build semicolon-separated list for Class dropdown
+                s_flangeClassTextBuf[0] = '\0';
+                for (int c = 0; c < db->classCount; c++) {
+                    strcat(s_flangeClassTextBuf, db->classes[c].className);
+                    if (c < db->classCount - 1) strcat(s_flangeClassTextBuf, ";");
                 }
+
+                // Build semicolon-separated list for NPS dropdown
+                s_flangeNpsTextBuf[0] = '\0';
+                int curRecordCount = db->classes[activeClassIdx].recordCount;
+                for (int s = 0; s < curRecordCount; s++) {
+                    strcat(s_flangeNpsTextBuf, db->classes[activeClassIdx].records[s].nps);
+                    if (s < curRecordCount - 1) strcat(s_flangeNpsTextBuf, ";");
+                }
+
+                float pickerH = 24.0f * app->uiScale;
+                GuiLabel((Rectangle){ inspX, inspY, 50.0f * app->uiScale, pickerH }, "Class:");
+                s_flangeClassBounds = (Rectangle){ inspX + 55.0f * app->uiScale, inspY, inspW - 55.0f * app->uiScale, pickerH };
                 inspY += pickerH + spacing;
+
+                GuiLabel((Rectangle){ inspX, inspY, 50.0f * app->uiScale, pickerH }, "NPS:");
+                s_flangeNpsBounds = (Rectangle){ inspX + 55.0f * app->uiScale, inspY, inspW - 55.0f * app->uiScale, pickerH };
+                inspY += pickerH + spacing;
+
+                hasFlangeDropdown = true;
+                dropdownEl = el;
 
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Thickness (fw): %.1f mm", el->width)); inspY += btnH;
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Height (fh): %.1f mm", el->height)); inspY += btnH;
@@ -750,6 +709,69 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 el->useCustomColor = false;
                 cmd.data.transform.after = *el;
                 ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
+            }
+
+            // Top-layer deferred rendering for Raygui GuiDropdownBox to avoid overlap
+            if (hasFlangeDropdown && dropdownEl) {
+                const FlangeDatabase *db = Flange_GetDatabase();
+                char curClass[16] = "150#";
+                char curNps[16] = "2\"";
+                char *sep = strchr(dropdownEl->text, '|');
+                if (sep) {
+                    size_t cLen = (size_t)(sep - dropdownEl->text);
+                    if (cLen < sizeof(curClass)) {
+                        strncpy(curClass, dropdownEl->text, cLen);
+                        curClass[cLen] = '\0';
+                    }
+                    strncpy(curNps, sep + 1, sizeof(curNps) - 1);
+                    curNps[sizeof(curNps) - 1] = '\0';
+                }
+
+                // Render in reverse order so that when Class is open, its list sits on top of NPS
+                if (!s_flangeClassEditMode) {
+                    int prevNpsActive = s_flangeNpsActive;
+                    if (GuiDropdownBox(s_flangeNpsBounds, s_flangeNpsTextBuf, &s_flangeNpsActive, s_flangeNpsEditMode)) {
+                        s_flangeNpsEditMode = !s_flangeNpsEditMode;
+                        if (!s_flangeNpsEditMode && s_flangeNpsActive != prevNpsActive) {
+                            int activeClassIdx = 0;
+                            for (int c = 0; c < db->classCount; c++) {
+                                if (strcmp(db->classes[c].className, curClass) == 0) {
+                                    activeClassIdx = c;
+                                    break;
+                                }
+                            }
+                            if (s_flangeNpsActive >= 0 && s_flangeNpsActive < db->classes[activeClassIdx].recordCount) {
+                                FlangeSpec spec;
+                                Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
+                                Flange_SetSpecBySize(&spec, curClass, db->classes[activeClassIdx].records[s_flangeNpsActive].nps);
+                                dropdownEl->width = spec.fw;
+                                dropdownEl->height = spec.fh;
+                                dropdownEl->radius = spec.ft;
+                                snprintf(dropdownEl->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
+                                GetElementAABB(dropdownEl);
+                                app->spatialIndexDirty = true;
+                            }
+                        }
+                    }
+                }
+
+                int prevClassActive = s_flangeClassActive;
+                if (GuiDropdownBox(s_flangeClassBounds, s_flangeClassTextBuf, &s_flangeClassActive, s_flangeClassEditMode)) {
+                    s_flangeClassEditMode = !s_flangeClassEditMode;
+                    if (!s_flangeClassEditMode && s_flangeClassActive != prevClassActive) {
+                        if (s_flangeClassActive >= 0 && s_flangeClassActive < db->classCount) {
+                            FlangeSpec spec;
+                            Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
+                            Flange_SetSpecBySize(&spec, db->classes[s_flangeClassActive].className, curNps);
+                            dropdownEl->width = spec.fw;
+                            dropdownEl->height = spec.fh;
+                            dropdownEl->radius = spec.ft;
+                            snprintf(dropdownEl->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
+                            GetElementAABB(dropdownEl);
+                            app->spatialIndexDirty = true;
+                        }
+                    }
+                }
             }
         } else {
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, "No Element Selected");
@@ -1073,7 +1095,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         CloseAllPopups(app);
         app->layerRenameEditMode = false;
         app->noteTextEditMode = false;
-        s_flangeClassOpen = false;
-        s_flangeNpsOpen = false;
+        s_flangeClassEditMode = false;
+        s_flangeNpsEditMode = false;
     }
 }
