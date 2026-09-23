@@ -9,6 +9,7 @@
 #include "raygui.h"
 #include "spatial_tree.h"
 #include "render_utils.h"
+#include "cad_connection.h"
 
 static const char* ResolvePath(const char *path) {
     if (FileExists(path)) return path;
@@ -89,6 +90,7 @@ void AppContext_Init(AppContext *ctx) {
     ctx->cachedAABBs = (AABB*)calloc(MAX_ELEMENTS, sizeof(AABB));
     ctx->spatialTree = (SpatialQuadTree*)calloc(1, sizeof(SpatialQuadTree));
     ctx->spatialIndexDirty = true;
+
     ctx->activeHandle = HANDLE_NONE;
     ctx->activeHandleElementIdx = -1;
 
@@ -98,13 +100,13 @@ void AppContext_Init(AppContext *ctx) {
     ctx->snapThreshold = 14.0f;
 
     CAD_PID_Init(&ctx->cadPid);
+    ConnectionSystem_Init(&ctx->connState);
 
     ctx->tweenCtx = TweenContext_Create(128);
     ctx->uiAnim.leftDockProgress = ctx->showLeftDock ? 1.0f : 0.0f;
     ctx->uiAnim.rightDockProgress = ctx->showRightDock ? 1.0f : 0.0f;
     ctx->uiAnim.hudProgress = ctx->showHudPanel ? 1.0f : 0.0f;
     ctx->uiAnim.contextMenuProgress = 0.0f;
-
     InitThemeColors(ctx);
 }
 
@@ -120,7 +122,6 @@ void AppContext_Cleanup(AppContext *ctx) {
     free(ctx->elementStartStates);
     free(ctx->cachedAABBs);
     free(ctx->spatialTree);
-
     for (int l = 0; l < ctx->layerCount; l++) {
         Layer_Free(&ctx->layers[l]);
     }
@@ -132,7 +133,6 @@ void AppContext_Update(AppContext *ctx) {
     if (ctx->statusMessageTimer > 0.0f) {
         ctx->statusMessageTimer -= dt;
     }
-
     ctx->camera.offset = (Vector2){ (float)GetScreenWidth() / 2.0f, (float)GetScreenHeight() / 2.0f };
     Vector2 mousePos = GetMousePosition();
     g_CADState.mouseScreen = mousePos;
@@ -151,17 +151,16 @@ void AppContext_Update(AppContext *ctx) {
         ctx->spatialIndexDirty = false;
     }
 
+    ConnectionSystem_UpdatePorts(&ctx->connState, ctx);
+
     if (ctx->uiScale != ctx->prevUiScale) {
         AppContext_InitFonts(ctx);
         Font bodyFont = ResourceManager_GetFont(&ctx->resManager, FONT_SLOT_BODY);
         GuiSetFont(bodyFont);
         GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(11 * ctx->uiScale));
-
-        // Dynamically update the RayGUI icon scale proportionally with uiScale
         int iconScale = (int)roundf(ctx->uiScale);
         if (iconScale < 1) iconScale = 1;
         GuiSetIconScale(iconScale);
-
         ctx->prevUiScale = ctx->uiScale;
     }
 
@@ -187,15 +186,12 @@ void AppContext_Update(AppContext *ctx) {
         float targetBgR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 242.0f : 38.0f;
         float targetBgG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 243.0f : 38.0f;
         float targetBgB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 245.0f : 38.0f;
-
         float targetSubR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 230.0f : 30.0f;
         float targetSubG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 233.0f : 30.0f;
         float targetSubB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 238.0f : 30.0f;
-
         float targetBrdR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 195.0f : 24.0f;
         float targetBrdG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 198.0f : 24.0f;
         float targetBrdB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 204.0f : 24.0f;
-
         float targetTxtR = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 30.0f : 230.0f;
         float targetTxtG = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 30.0f : 230.0f;
         float targetTxtB = (ctx->uiConfig.uiTheme == UI_THEME_LIGHT) ? 30.0f : 230.0f;
@@ -204,19 +200,15 @@ void AppContext_Update(AppContext *ctx) {
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.panelBgR, targetBgR, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.panelBgG, targetBgG, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.panelBgB, targetBgB, themeDuration, TweenEase_QuadInOut);
-
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.subpanelBgR, targetSubR, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.subpanelBgG, targetSubG, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.subpanelBgB, targetSubB, themeDuration, TweenEase_QuadInOut);
-
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.borderR, targetBrdR, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.borderG, targetBrdG, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.borderB, targetBrdB, themeDuration, TweenEase_QuadInOut);
-
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.textR, targetTxtR, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.textG, targetTxtG, themeDuration, TweenEase_QuadInOut);
         Tween_To(ctx->tweenCtx, &ctx->uiAnim.textB, targetTxtB, themeDuration, TweenEase_QuadInOut);
     }
-
     Tween_Update(ctx->tweenCtx, dt);
 }
