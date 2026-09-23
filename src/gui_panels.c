@@ -3,6 +3,7 @@
 #include "project_io.h"
 #include "layer.h"
 #include "cad_pid.h"
+#include "flange.h"
 #include <stdio.h>
 #include <string.h>
 #include "cad_math.h"
@@ -46,6 +47,7 @@ void ApplyMicroUiTheme(mu_Context *ctx, int theme) {
 void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
+
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
     float dockY = menuBarHeight;
@@ -74,7 +76,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             int menuBtnH = (int)(menuBarHeight - 6.0f * app->uiScale);
             if (menuBtnH < 18) menuBtnH = 18;
             mu_layout_row(mu_ctx, 5, colWidths, menuBtnH);
-
             if (mu_button(mu_ctx, "File")) { mu_open_popup(mu_ctx, "FileMenu"); app->openFileMenu = true; }
             if (mu_button(mu_ctx, "Edit")) { mu_open_popup(mu_ctx, "EditMenu"); app->openEditMenu = true; }
             if (mu_button(mu_ctx, "Window")) { mu_open_popup(mu_ctx, "WindowMenu"); app->openWindowMenu = true; }
@@ -174,6 +175,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                 if (mu_button(mu_ctx, "Pan Mode")) { ProcessCommand("pan", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openFunctionsMenu = false; }
                 mu_end_popup(mu_ctx);
             }
+
             mu_end_window(mu_ctx);
         }
 
@@ -227,7 +229,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     for (int i = 0; i < app->layerCount; i++) {
                         mu_push_id(mu_ctx, &app->layers[i], sizeof(Layer*));
                         mu_layout_row(mu_ctx, 8, lCols, (int)(19 * app->uiScale));
-
                         bool isTargetActive = (i == app->activeLayerIndex);
                         if (mu_button(mu_ctx, isTargetActive ? ">" : " ")) {
                             app->activeLayerIndex = i;
@@ -275,17 +276,14 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     mu_layout_row(mu_ctx, 2, (int[]){ -95, -1 }, (int)(20 * app->uiScale));
                     mu_text(mu_ctx, TextFormat("Elements (%d)", app->elementCount));
                     if (mu_button(mu_ctx, "Deselect")) DeselectAllElements(app->elements, app->elementCount);
-
                     bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
                     for (int i = 0; i < app->elementCount; i++) {
                         mu_push_id(mu_ctx, &app->elements[i], sizeof(GridElement*));
                         mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(19 * app->uiScale));
-
-                        const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rectangle" : (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" : (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" : (app->elements[i].type == ELEMENT_ARC ? "Arc" : (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" : (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" : (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" : (app->elements[i].type == ELEMENT_LINE ? "Line" : (app->elements[i].type == ELEMENT_SYMBOL ? "Symbol/Instrument" : "Dimension"))))))));
+                        const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rectangle" : (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" : (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" : (app->elements[i].type == ELEMENT_ARC ? "Arc" : (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" : (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" : (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" : (app->elements[i].type == ELEMENT_LINE ? "Line" : (app->elements[i].type == ELEMENT_SYMBOL ? (strchr(app->elements[i].text, '|') ? "Weld Neck Flange" : "Symbol/Instrument") : "Dimension"))))))));
                         const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
                         char itemLabel[64];
                         snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
-
                         if (mu_button(mu_ctx, itemLabel)) {
                             if (!isCtrl) DeselectAllElements(app->elements, app->elementCount);
                             app->elements[i].selected = !app->elements[i].selected;
@@ -325,8 +323,19 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
 
                 if (selectedCount > 0 && selectedElementIndex >= 0) {
                     GridElement *el = &app->elements[selectedElementIndex];
+                    bool isFlange = (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL);
+
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
-                    const char *title = (el->type == ELEMENT_RECT) ? "Type: Rectangle" : (el->type == ELEMENT_CIRCLE ? "Type: Circle" : (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" : (el->type == ELEMENT_ARC ? "Type: Arc" : (el->type == ELEMENT_TEXT_NOTE ? "Type: Text Note" : (el->type == ELEMENT_POLYLINE ? "Type: Polyline" : (el->type == ELEMENT_FREEHAND ? "Type: Freehand" : (el->type == ELEMENT_LINE ? "Type: Line" : (el->type == ELEMENT_SYMBOL ? "Type: Instrument / Symbol" : "Type: Dimension"))))))));
+                    const char *title = isFlange ? "Type: Weld Neck Flange (ASME B16.5)" :
+                                        ((el->type == ELEMENT_RECT) ? "Type: Rectangle" :
+                                        (el->type == ELEMENT_CIRCLE ? "Type: Circle" :
+                                        (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" :
+                                        (el->type == ELEMENT_ARC ? "Type: Arc" :
+                                        (el->type == ELEMENT_TEXT_NOTE ? "Type: Text Note" :
+                                        (el->type == ELEMENT_POLYLINE ? "Type: Polyline" :
+                                        (el->type == ELEMENT_FREEHAND ? "Type: Freehand" :
+                                        (el->type == ELEMENT_LINE ? "Type: Line" :
+                                        (el->type == ELEMENT_SYMBOL ? "Type: Instrument / Symbol" : "Type: Dimension")))))))));
                     mu_text(mu_ctx, title);
                     mu_text(mu_ctx, TextFormat("Entity ID: %u", el->id));
                     mu_text(mu_ctx, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y));
@@ -341,6 +350,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         cmd.data.layerChange.newLayer = app->activeLayerIndex;
                         ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                     }
+
                     if (mu_button(mu_ctx, "Send Back (1 Step)")) {
                         int targetLayer = el->layerIndex;
                         int prevSameLayerIdx = -1;
@@ -355,6 +365,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
+
                     if (mu_button(mu_ctx, "Send to Backmost")) {
                         int targetLayer = el->layerIndex;
                         int firstSameLayerIdx = -1;
@@ -370,12 +381,91 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         }
                     }
 
+                    // Flange Rating Dropdown Properties
+                    if (isFlange) {
+                        const FlangeDatabase *db = Flange_GetDatabase();
+                        char curClass[16] = "150#";
+                        char curNps[16] = "2\"";
+                        char *sep = strchr(el->text, '|');
+                        if (sep) {
+                            size_t cLen = (size_t)(sep - el->text);
+                            if (cLen < sizeof(curClass)) {
+                                strncpy(curClass, el->text, cLen);
+                                curClass[cLen] = '\0';
+                            }
+                            strncpy(curNps, sep + 1, sizeof(curNps) - 1);
+                            curNps[sizeof(curNps) - 1] = '\0';
+                        }
+
+                        mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
+                        mu_text(mu_ctx, "--- ASME B16.5 Ratings ---");
+
+                        // Class Tree/Dropdown
+                        if (mu_begin_treenode(mu_ctx, TextFormat("Class: %s", curClass))) {
+                            for (int c = 0; c < db->classCount; c++) {
+                                mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
+                                bool isCur = (strcmp(db->classes[c].className, curClass) == 0);
+                                if (mu_button(mu_ctx, TextFormat("%s %s", isCur ? ">" : " ", db->classes[c].className))) {
+                                    FlangeSpec spec;
+                                    Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
+                                    Flange_SetSpecBySize(&spec, db->classes[c].className, curNps);
+                                    el->width = spec.fw;
+                                    el->height = spec.fh;
+                                    el->radius = spec.ft;
+                                    snprintf(el->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
+                                    GetElementAABB(el);
+                                    app->spatialIndexDirty = true;
+                                }
+                            }
+                            mu_end_treenode(mu_ctx);
+                        }
+
+                        // NPS Tree/Dropdown
+                        if (mu_begin_treenode(mu_ctx, TextFormat("NPS: %s", curNps))) {
+                            int activeClassIdx = 0;
+                            for (int c = 0; c < db->classCount; c++) {
+                                if (strcmp(db->classes[c].className, curClass) == 0) {
+                                    activeClassIdx = c;
+                                    break;
+                                }
+                            }
+                            for (int s = 0; s < db->classes[activeClassIdx].recordCount; s++) {
+                                mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
+                                bool isCur = (strcmp(db->classes[activeClassIdx].records[s].nps, curNps) == 0);
+                                if (mu_button(mu_ctx, TextFormat("%s %s", isCur ? ">" : " ", db->classes[activeClassIdx].records[s].nps))) {
+                                    FlangeSpec spec;
+                                    Flange_InitDefaultSpec(&spec, FLANGE_WELD_NECK);
+                                    Flange_SetSpecBySize(&spec, curClass, db->classes[activeClassIdx].records[s].nps);
+                                    el->width = spec.fw;
+                                    el->height = spec.fh;
+                                    el->radius = spec.ft;
+                                    snprintf(el->text, TEXT_NOTE_LEN, "%s|%s", spec.className, spec.nps);
+                                    GetElementAABB(el);
+                                    app->spatialIndexDirty = true;
+                                }
+                            }
+                            mu_end_treenode(mu_ctx);
+                        }
+
+                        mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
+                        mu_text(mu_ctx, TextFormat("Thickness (fw): %.1f mm", el->width));
+                        mu_text(mu_ctx, TextFormat("Height (fh): %.1f mm", el->height));
+                        mu_text(mu_ctx, TextFormat("Tail Length (ft): %.1f mm", el->radius));
+                    }
+
                     mu_text(mu_ctx, TextFormat("Rotation: %.1f deg", el->rotation));
                     if (mu_slider(mu_ctx, &el->rotation, 0.0f, 360.0f)) app->spatialIndexDirty = true;
-                    mu_text(mu_ctx, TextFormat("Scale X: %.2f | Y: %.2f", el->scale.x, el->scale.y));
-                    if (mu_slider(mu_ctx, &el->scale.x, 0.1f, 5.0f)) app->spatialIndexDirty = true;
-                    if (mu_slider(mu_ctx, &el->scale.y, 0.1f, 5.0f)) app->spatialIndexDirty = true;
 
+                    // SCALE SLIDER: Locked and uneditable for standard Flanges
+                    if (isFlange) {
+                        mu_text(mu_ctx, "Scale: 1.00 (Locked by ASME Standard)");
+                    } else {
+                        mu_text(mu_ctx, TextFormat("Scale X: %.2f | Y: %.2f", el->scale.x, el->scale.y));
+                        if (mu_slider(mu_ctx, &el->scale.x, 0.1f, 5.0f)) app->spatialIndexDirty = true;
+                        if (mu_slider(mu_ctx, &el->scale.y, 0.1f, 5.0f)) app->spatialIndexDirty = true;
+                    }
+
+                    // ROTATION PRESETS
                     mu_layout_row(mu_ctx, 5, (int[]){ (int)(42 * app->uiScale), (int)(42 * app->uiScale), (int)(42 * app->uiScale), (int)(42 * app->uiScale), (int)(42 * app->uiScale) }, (int)(20 * app->uiScale));
                     float presets[] = { 0.0f, 45.0f, 90.0f, 180.0f, 270.0f };
                     const char *presetLabels[] = { "0", "45", "90", "180", "270" };
@@ -392,6 +482,14 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     }
 
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
+                    // LINE THICKNESS SLIDER: Available for all element types
+                    if (el->lineThickness <= 0.0f) el->lineThickness = 3.0f;
+                    mu_text(mu_ctx, TextFormat("Line Thickness: %.1f", el->lineThickness));
+                    if (mu_slider(mu_ctx, &el->lineThickness, 1.0f, 12.0f)) {
+                        GetElementAABB(el);
+                        app->spatialIndexDirty = true;
+                    }
+
                     if (el->type == ELEMENT_RECT) {
                         mu_text(mu_ctx, TextFormat("Width: %.1f", el->width));
                         if (mu_slider(mu_ctx, &el->width, MIN_ELEMENT_SIZE, 300.0f)) app->spatialIndexDirty = true;
@@ -413,18 +511,15 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         mu_text(mu_ctx, TextFormat("Font Size: %d", el->textSize));
                         float ts = (float)el->textSize;
                         if (mu_slider(mu_ctx, &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
-                    } else if (el->type == ELEMENT_LINE || el->type == ELEMENT_DIMENSION || el->type == ELEMENT_POLYLINE || el->type == ELEMENT_FREEHAND || el->type == ELEMENT_ARC) {
-                        mu_text(mu_ctx, TextFormat("Line Thick: %.1f", el->lineThickness));
-                        if (mu_slider(mu_ctx, &el->lineThickness, 1.0f, 10.0f)) app->spatialIndexDirty = true;
-                        if (el->type == ELEMENT_DIMENSION) {
-                            mu_text(mu_ctx, TextFormat("Tick Thick: %.1f", el->tickThickness));
-                            mu_slider(mu_ctx, &el->tickThickness, 1.0f, 10.0f);
-                            mu_text(mu_ctx, TextFormat("Text Size: %d", el->textSize));
-                            float ts = (float)el->textSize;
-                            if (mu_slider(mu_ctx, &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
-                        }
+                    } else if (el->type == ELEMENT_DIMENSION) {
+                        mu_text(mu_ctx, TextFormat("Tick Thick: %.1f", el->tickThickness));
+                        mu_slider(mu_ctx, &el->tickThickness, 1.0f, 10.0f);
+                        mu_text(mu_ctx, TextFormat("Text Size: %d", el->textSize));
+                        float ts = (float)el->textSize;
+                        if (mu_slider(mu_ctx, &ts, 8.0f, 48.0f)) el->textSize = (int)ts;
                     }
 
+                    // COLOR PALETTE
                     mu_text(mu_ctx, el->useCustomColor ? "Color: Custom" : "Color: Layer");
                     mu_layout_row(mu_ctx, 4, (int[]){ (int)(55 * app->uiScale), (int)(55 * app->uiScale), (int)(55 * app->uiScale), (int)(55 * app->uiScale) }, (int)(20 * app->uiScale));
                     const char *colorNames[] = { "Sky", "Lime", "Orange", "Purple", "Red", "Gold", "Gray", "Black" };
@@ -435,11 +530,13 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             cmd.data.transform.index = selectedElementIndex;
                             cmd.data.transform.before = *el;
                             el->color = PALETTE[p];
+                            el->color.a = 255;
                             el->useCustomColor = true;
                             cmd.data.transform.after = *el;
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
+
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
                     if (el->useCustomColor && mu_button(mu_ctx, "Reset to Layer Color")) {
                         Command cmd = { 0 };
@@ -513,7 +610,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             }
         }
 
-        // 5. Unit Modal
+        // 5. Unit Modal Window
         if (app->showUnitWindow) {
             mu_Rect uRect = mu_rect(winW / 2 - (int)(150 * app->uiScale), winH / 2 - (int)(100 * app->uiScale), (int)(300 * app->uiScale), (int)(200 * app->uiScale));
             mu_Container *uWin = mu_get_container(mu_ctx, "Measurement Unit");
@@ -534,7 +631,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             }
         }
 
-        // 6. UI Scale Modal
+        // 6. UI Scale Modal Window
         if (app->showScaleWindow) {
             mu_Rect sRect = mu_rect(winW / 2 - (int)(150 * app->uiScale), winH / 2 - (int)(100 * app->uiScale), (int)(300 * app->uiScale), (int)(200 * app->uiScale));
             mu_Container *sWin = mu_get_container(mu_ctx, "Adjust UI Scale (%)");

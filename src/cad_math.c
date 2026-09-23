@@ -3,6 +3,7 @@
 #include <math.h>
 #include <ctype.h>
 #include <float.h>
+#include <string.h>
 
 CADGlobalState g_CADState = {
     .activeLayerIndex = 0,
@@ -72,12 +73,9 @@ AABB ExpandAABB(AABB box, float margin) {
 float SnapAngle(float angleDeg, bool isSnapActive) {
     while (angleDeg < 0.0f) angleDeg += 360.0f;
     while (angleDeg >= 360.0f) angleDeg -= 360.0f;
-
     if (!isSnapActive) return angleDeg;
-
     const float snapSteps[] = { 90.0f, 45.0f, 15.0f };
     const float threshold = 5.0f;
-
     for (int i = 0; i < 3; i++) {
         float step = snapSteps[i];
         float nearest = roundf(angleDeg / step) * step;
@@ -94,20 +92,15 @@ bool Calculate3PointArc(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *center, flo
     float bc = (p1.x * p1.x + p1.y * p1.y - temp) * 0.5f;
     float cd = (temp - p3.x * p3.x - p3.y * p3.y) * 0.5f;
     float det = (p1.x - p2.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p2.y);
-
     if (fabsf(det) < 0.0001f) return false;
-
     float invDet = 1.0f / det;
     center->x = (bc * (p2.y - p3.y) - cd * (p1.y - p2.y)) * invDet;
     center->y = ((p1.x - p2.x) * cd - (p2.x - p3.x) * bc) * invDet;
     *radius = Vector2Distance(*center, p1);
-
     float a1 = atan2f(p1.y - center->y, p1.x - center->x) * RAD2DEG;
     float a3 = atan2f(p3.y - center->y, p3.x - center->x) * RAD2DEG;
-
     if (a1 < 0) a1 += 360.0f;
     if (a3 < 0) a3 += 360.0f;
-
     *startAngle = a1;
     *endAngle = a3;
     return true;
@@ -136,16 +129,13 @@ Vector2 GetLocalRotationHandlePosition(const GridElement *el, float zoom) {
 void GetElementSnapLines(const GridElement *el, float xOut[5], int *xCount, float yOut[5], int *yCount) {
     *xCount = 0;
     *yCount = 0;
-
     if (el->type == ELEMENT_RECT || el->type == ELEMENT_CIRCLE || el->type == ELEMENT_ELLIPSE || el->type == ELEMENT_TEXT_NOTE) {
         float halfW = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusX : el->width * 0.5f);
         float halfH = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusY : el->height * 0.5f);
-
         Vector2 localPts[5] = {
             { 0, 0 }, { -halfW, -halfH }, { halfW, -halfH },
             { -halfW, halfH }, { halfW, halfH }
         };
-
         for (int i = 0; i < 5; i++) {
             Vector2 worldPt = LocalToWorldPoint(localPts[i], el->pos, el->rotation);
             if (*xCount < 5) xOut[(*xCount)++] = worldPt.x;
@@ -269,8 +259,31 @@ AABB GetElementAABB(GridElement *el) {
             break;
         }
         case ELEMENT_SYMBOL: {
-            box.min = (Vector2){ el->pos.x - 20.0f * el->scale.x, el->pos.y - 20.0f * el->scale.y };
-            box.max = (Vector2){ el->pos.x + 20.0f * el->scale.x, el->pos.y + 20.0f * el->scale.y };
+            if (strchr(el->text, '|') != NULL) {
+                // Weld neck flange bounds
+                float fw = el->width * el->scale.x;
+                float fh = el->height * el->scale.y;
+                float ft = el->radius * el->scale.x;
+                Vector2 pts[6] = {
+                    { 0.0f, -fh * 0.5f },
+                    { fw,   -fh * 0.5f },
+                    { fw,    fh * 0.5f },
+                    { 0.0f,  fh * 0.5f },
+                    { fw - ft, -fw * 0.5f },
+                    { fw - ft,  fw * 0.5f }
+                };
+                for (int p = 0; p < 6; p++) {
+                    Vector2 wPt = LocalToWorldPoint(pts[p], el->pos, el->rotation);
+                    box.min.x = fminf(box.min.x, wPt.x);
+                    box.min.y = fminf(box.min.y, wPt.y);
+                    box.max.x = fmaxf(box.max.x, wPt.x);
+                    box.max.y = fmaxf(box.max.y, wPt.y);
+                }
+                box = ExpandAABB(box, 5.0f);
+            } else {
+                box.min = (Vector2){ el->pos.x - 20.0f * el->scale.x, el->pos.y - 20.0f * el->scale.y };
+                box.max = (Vector2){ el->pos.x + 20.0f * el->scale.x, el->pos.y + 20.0f * el->scale.y };
+            }
             break;
         }
     }
@@ -281,20 +294,16 @@ AABB GetElementAABB(GridElement *el) {
 
 HandleType HitTestHandles(const GridElement *el, Vector2 worldPos, float zoom) {
     if (!el->selected || (el->type != ELEMENT_RECT && el->type != ELEMENT_CIRCLE && el->type != ELEMENT_ELLIPSE && el->type != ELEMENT_TEXT_NOTE)) return HANDLE_NONE;
-
     float hitRadius = (HANDLE_SIZE_PX * 1.5f) / zoom;
-
     Vector2 rotLocal = GetLocalRotationHandlePosition(el, zoom);
     Vector2 rotWorld = LocalToWorldPoint(rotLocal, el->pos, el->rotation);
     if (Vector2Distance(worldPos, rotWorld) <= hitRadius) return HANDLE_ROTATION;
-
     Vector2 localNodes[8];
     GetLocalControlNodePositions(el, localNodes);
     for (int i = 0; i < 8; i++) {
         Vector2 nodeWorld = LocalToWorldPoint(localNodes[i], el->pos, el->rotation);
         if (Vector2Distance(worldPos, nodeWorld) <= hitRadius) return (HandleType)i;
     }
-
     return HANDLE_NONE;
 }
 

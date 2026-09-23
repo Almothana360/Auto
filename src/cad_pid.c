@@ -23,6 +23,7 @@ void CAD_PID_Init(PIDSystemState *pid) {
     pid->paletteRadius = 90.0f;
     pid->hoveredItemIndex = -1;
     pid->selectedItemIndex = -1;
+    Flange_LoadDatabase("P_ID_res/Flanges_WN.json");
     Flange_InitDefaultSpec(&pid->currentFlangeSpec, FLANGE_WELD_NECK);
 }
 
@@ -48,7 +49,6 @@ static void CalculateItemRadialPosition(Vector2 center, float radius, int index,
 
 bool CAD_PID_Update(PIDSystemState *pid, AppContext *app, bool overUI) {
     if (!pid || !app) return false;
-
     float dt = GetFrameTime();
     if (pid->isPaletteOpen) {
         if (pid->animProgress < 1.0f) {
@@ -59,13 +59,12 @@ bool CAD_PID_Update(PIDSystemState *pid, AppContext *app, bool overUI) {
         Vector2 mouseScreen = g_CADState.mouseScreen;
         float scaledRadius = pid->paletteRadius * app->uiScale * pid->animProgress;
         float itemBtnSize = 42.0f * app->uiScale;
-
         pid->hoveredItemIndex = -1;
+
         for (int i = 0; i < CAD_PID_MAX_RADIAL_ITEMS; i++) {
             Vector2 itemCenter;
             CalculateItemRadialPosition(pid->paletteCenterScreen, scaledRadius, i, CAD_PID_MAX_RADIAL_ITEMS, &itemCenter);
             Rectangle btnRec = { itemCenter.x - itemBtnSize * 0.5f, itemCenter.y - itemBtnSize * 0.5f, itemBtnSize, itemBtnSize };
-
             if (CheckCollisionPointRec(mouseScreen, btnRec)) {
                 pid->hoveredItemIndex = i;
                 break;
@@ -85,7 +84,6 @@ bool CAD_PID_Update(PIDSystemState *pid, AppContext *app, bool overUI) {
                 CAD_PID_ClosePalette(pid);
             }
         }
-
         if (IsKeyPressed(KEY_ESCAPE) || IsMouseButtonPressed(MOUSE_BUTTON_RIGHT)) {
             CAD_PID_ClosePalette(pid);
             return true;
@@ -138,6 +136,7 @@ bool CAD_PID_Update(PIDSystemState *pid, AppContext *app, bool overUI) {
                         cmd.data.create.index = app->elementCount;
                         cmd.data.create.element = pipeEl;
                         ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
+
                         snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID Pipe Inserted");
                         app->statusMessageTimer = 2.0f;
                     }
@@ -152,13 +151,11 @@ bool CAD_PID_Update(PIDSystemState *pid, AppContext *app, bool overUI) {
             return true;
         }
     }
-
     return false;
 }
 
 void CAD_PID_RenderPalette(const PIDSystemState *pid, float uiScale, Font font) {
     if (!pid || !pid->isPaletteOpen) return;
-
     float currentRadius = pid->paletteRadius * uiScale * pid->animProgress;
     Vector2 center = pid->paletteCenterScreen;
     float itemBtnSize = 44.0f * uiScale;
@@ -198,6 +195,9 @@ void CAD_PID_RenderToolPreview(const PIDSystemState *pid, AppContext *app, Vecto
             DrawCircleV(pid->placementP1, 4.0f / app->camera.zoom, SKYBLUE);
             DrawCircleV(activeToolPoint, 4.0f / app->camera.zoom, SKYBLUE);
         }
+    } else if (pid->activeToolInstrument == PID_ITEM_FLANGE) {
+        GridElement previewEl = Flange_CreateGridElement(activeToolPoint, 0.0f, app->activeLayerIndex, &pid->currentFlangeSpec);
+        Flange_DrawElement(&previewEl, Fade(previewEl.color, 0.7f), app->camera.zoom, false);
     } else {
         float size = 18.0f / app->camera.zoom;
         Rectangle previewRec = { activeToolPoint.x - size * 0.5f, activeToolPoint.y - size * 0.5f, size, size };
@@ -210,7 +210,6 @@ bool CAD_PID_ValidatePlacement(PIDInstrumentType type, Vector2 worldPos, const A
     if (!app) return false;
     (void)type;
     (void)worldPos;
-    // Layer must be visible and non-locked
     if (app->activeLayerIndex < 0 || app->activeLayerIndex >= app->layerCount) return false;
     if (app->layers[app->activeLayerIndex].locked || !app->layers[app->activeLayerIndex].visible) return false;
     return true;
