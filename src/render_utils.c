@@ -29,12 +29,16 @@ void DrawDimensionElement(GridElement *el, MeasureUnit currentUnit, float zoom, 
     Vector2 dir = { el->p2.x - el->p1.x, el->p2.y - el->p1.y };
     float length = sqrtf(dir.x * dir.x + dir.y * dir.y);
     if (length < 0.001f) return;
+
     Vector2 uDir = { dir.x / length, dir.y / length };
     Vector2 normal = { -uDir.y, uDir.x };
+
     Vector2 vP1ToOffset = { el->dimPos.x - el->p1.x, el->dimPos.y - el->p1.y };
     float offsetDist = vP1ToOffset.x * normal.x + vP1ToOffset.y * normal.y;
+
     Vector2 dimP1 = { el->p1.x + normal.x * offsetDist, el->p1.y + normal.y * offsetDist };
     Vector2 dimP2 = { el->p2.x + normal.x * offsetDist, el->p2.y + normal.y * offsetDist };
+
     Color renderColor = isSelected ? GOLD : el->color;
     float lThick = (el->lineThickness > 0.0f ? el->lineThickness : 3.0f) / zoom;
     float tThick = (el->tickThickness > 0.0f ? el->tickThickness : 2.0f) / zoom;
@@ -52,6 +56,7 @@ void DrawDimensionElement(GridElement *el, MeasureUnit currentUnit, float zoom, 
     const char *unitStr;
     GetUnitConvertedLength(length, currentUnit, &convLength, &unitStr);
     Vector2 midPoint = { (dimP1.x + dimP2.x) * 0.5f, (dimP1.y + dimP2.y) * 0.5f };
+
     const char *distText = TextFormat("%.2f %s", convLength, unitStr);
     float fSize = (float)el->textSize / zoom;
     if (fSize < 10.0f) fSize = 10.0f;
@@ -103,15 +108,19 @@ void DrawElementSelectionGizmo(const GridElement *el, float zoom) {
     // Corner brackets for clear visual emphasis
     float cornerLen = fminf(selBox.width * 0.25f, 10.0f / zoom);
     float cThick = 2.0f / zoom;
+
     // Top-Left
     DrawLineEx((Vector2){ selBox.x, selBox.y }, (Vector2){ selBox.x + cornerLen, selBox.y }, cThick, GOLD);
     DrawLineEx((Vector2){ selBox.x, selBox.y }, (Vector2){ selBox.x, selBox.y + cornerLen }, cThick, GOLD);
+
     // Top-Right
     DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y }, (Vector2){ selBox.x + selBox.width - cornerLen, selBox.y }, cThick, GOLD);
     DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y }, (Vector2){ selBox.x + selBox.width, selBox.y + cornerLen }, cThick, GOLD);
+
     // Bottom-Left
     DrawLineEx((Vector2){ selBox.x, selBox.y + selBox.height }, (Vector2){ selBox.x + cornerLen, selBox.y + selBox.height }, cThick, GOLD);
     DrawLineEx((Vector2){ selBox.x, selBox.y + selBox.height }, (Vector2){ selBox.x, selBox.y + selBox.height - cornerLen }, cThick, GOLD);
+
     // Bottom-Right
     DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y + selBox.height }, (Vector2){ selBox.x + selBox.width - cornerLen, selBox.y + selBox.height }, cThick, GOLD);
     DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y + selBox.height }, (Vector2){ selBox.x + selBox.width, selBox.y + selBox.height - cornerLen }, cThick, GOLD);
@@ -128,6 +137,7 @@ void DrawElementSelectionGizmo(const GridElement *el, float zoom) {
         Vector2 rotLocal = GetLocalRotationHandlePosition(el, zoom);
         Vector2 rotWorld = LocalToWorldPoint(rotLocal, el->pos, el->rotation);
         Vector2 topCenterWorld = worldNodes[HANDLE_TOP_CENTER];
+
         DrawLineEx(topCenterWorld, rotWorld, 1.5f / zoom, DARKGRAY);
         DrawCircleV(rotWorld, (HANDLE_SIZE_PX * 0.8f) / zoom, GOLD);
         DrawCircleLines((int)rotWorld.x, (int)rotWorld.y, (HANDLE_SIZE_PX * 0.8f) / zoom, DARKGRAY);
@@ -137,6 +147,16 @@ void DrawElementSelectionGizmo(const GridElement *el, float zoom) {
             Rectangle hRect = { worldNodes[i].x - side * 0.5f, worldNodes[i].y - side * 0.5f, side, side };
             DrawRectangleRec(hRect, WHITE);
             DrawRectangleLinesEx(hRect, 1.0f / zoom, BLUE);
+        }
+    } else if (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL) {
+        // Visual indicator of the 8 snapping points when flange is selected
+        Vector2 snapPts[MAX_POLYLINE_POINTS];
+        int snapCount = 0;
+        GetElementSnapPoints(el, snapPts, &snapCount);
+        float pRadius = 3.5f / zoom;
+        for (int i = 0; i < snapCount; i++) {
+            DrawCircleV(snapPts[i], pRadius, Fade(GOLD, 0.85f));
+            DrawCircleLines((int)snapPts[i].x, (int)snapPts[i].y, pRadius + 1.0f / zoom, DARKGRAY);
         }
     }
 }

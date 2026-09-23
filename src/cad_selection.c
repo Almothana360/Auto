@@ -22,7 +22,6 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 hTested = HitTestHandles(&app->elements[sIdx], g_CADState.mouseWorld, app->camera.zoom);
                 if (hTested != HANDLE_NONE) hIdx = sIdx;
             }
-
             if (hTested != HANDLE_NONE && hIdx != -1) {
                 app->activeHandle = hTested;
                 app->activeHandleElementIdx = hIdx;
@@ -66,7 +65,6 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                     float halfW = origW * 0.5f;
                     float halfH = origH * 0.5f;
                     float left = -halfW, right = halfW, top = -halfH, bottom = halfH;
-
                     switch (app->activeHandle) {
                         case HANDLE_TOP_LEFT: left = localMouse.x; top = localMouse.y; break;
                         case HANDLE_TOP_CENTER: top = localMouse.y; break;
@@ -78,7 +76,6 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         case HANDLE_LEFT_CENTER: left = localMouse.x; break;
                         default: break;
                     }
-
                     if (right - left < MIN_ELEMENT_SIZE) {
                         if (app->activeHandle == HANDLE_LEFT_CENTER || app->activeHandle == HANDLE_TOP_LEFT || app->activeHandle == HANDLE_BOTTOM_LEFT) left = right - MIN_ELEMENT_SIZE;
                         else right = left + MIN_ELEMENT_SIZE;
@@ -87,11 +84,9 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         if (app->activeHandle == HANDLE_TOP_CENTER || app->activeHandle == HANDLE_TOP_LEFT || app->activeHandle == HANDLE_TOP_RIGHT) top = bottom - MIN_ELEMENT_SIZE;
                         else bottom = top + MIN_ELEMENT_SIZE;
                     }
-
                     float newW = right - left;
                     float newH = bottom - top;
                     Vector2 localCenter = { (left + right) * 0.5f, (top + bottom) * 0.5f };
-
                     el->width = newW;
                     el->height = newH;
                     el->pos = LocalToWorldPoint(localCenter, app->initialHandleElementState.pos, app->initialHandleElementState.rotation);
@@ -114,7 +109,6 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 float minY = fminf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
                 float maxY = fmaxf(app->boxStartWorldPos.y, app->boxCurrentWorldPos.y);
                 AABB selBox = { { minX, minY }, { maxX, maxY } };
-
                 for (int i = 0; i < app->elementCount; i++) {
                     if (!app->layers[app->elements[i].layerIndex].visible || app->layers[app->elements[i].layerIndex].locked) continue;
                     if (AABBIntersectsAABB(app->cachedAABBs[i], selBox)) {
@@ -128,12 +122,11 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                 Vector2 rawMouseDelta = { g_CADState.mouseWorld.x - app->dragStartWorldPos.x, g_CADState.mouseWorld.y - app->dragStartWorldPos.y };
                 Vector2 mouseDelta = rawMouseDelta;
 
-                // Snapping calculations during drag (snaps correctly whether snapToGrid, snapEnabled, or both are on)
+                // Snapping calculations during drag
                 if ((app->snapEnabled || app->snapToGrid) && selectedCount == 1) {
                     int sIdx = GetFirstSelectedIndex(app->elements, app->elementCount);
                     GridElement tempEl = app->elements[sIdx];
                     GridElement *start = &app->elementStartStates[sIdx];
-
                     if (tempEl.type == ELEMENT_DIMENSION) {
                         tempEl.dimPos.x = start->dimPos.x + rawMouseDelta.x;
                         tempEl.dimPos.y = start->dimPos.y + rawMouseDelta.y;
@@ -161,7 +154,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         tempEl.pos.y = start->pos.y + rawMouseDelta.y;
                     }
 
-                    float myLinesX[5], myLinesY[5];
+                    float myLinesX[8], myLinesY[8];
                     int myCntX = 0, myCntY = 0;
                     GetElementSnapLines(&tempEl, myLinesX, &myCntX, myLinesY, &myCntY);
 
@@ -176,7 +169,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                             if (i == sIdx || !app->layers[app->elements[i].layerIndex].visible) continue;
                             if (!AABBIntersectsAABB(app->cachedAABBs[i], dragAABB)) continue;
 
-                            float tLinesX[5], tLinesY[5];
+                            float tLinesX[8], tLinesY[8];
                             int tCntX = 0, tCntY = 0;
                             GetElementSnapLines(&app->elements[i], tLinesX, &tCntX, tLinesY, &tCntY);
 
@@ -205,7 +198,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         }
                     }
 
-                    // 2. Grid snapping (independent: snaps to grid lines unconditionally if snapToGrid is active)
+                    // 2. Grid snapping
                     if (app->snapToGrid) {
                         for (int m = 0; m < myCntX; m++) {
                             float gridX = roundf(myLinesX[m] / app->gridSpacing) * app->gridSpacing;
@@ -237,7 +230,6 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                     if (!app->elements[i].selected) continue;
                     GridElement *curr = &app->elements[i];
                     GridElement *start = &app->elementStartStates[i];
-
                     if (curr->type == ELEMENT_DIMENSION) {
                         curr->dimPos.x = start->dimPos.x + mouseDelta.x;
                         curr->dimPos.y = start->dimPos.y + mouseDelta.y;
@@ -289,7 +281,6 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
             } else if (app->elements[firstIdx].type == ELEMENT_DIMENSION) {
                 diff = Vector2Subtract(app->elements[firstIdx].dimPos, app->elementStartStates[firstIdx].dimPos);
             }
-
             if (Vector2LengthSqr(diff) > 0.0001f) {
                 Command moveCmd = { 0 };
                 moveCmd.type = CMD_MOVE_BATCH;

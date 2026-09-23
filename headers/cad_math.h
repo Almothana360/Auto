@@ -14,7 +14,7 @@ float SnapAngle(float angleDeg, bool isSnapActive);
 bool Calculate3PointArc(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *center, float *radius, float *startAngle, float *endAngle);
 void GetLocalControlNodePositions(const GridElement *el, Vector2 nodes[8]);
 Vector2 GetLocalRotationHandlePosition(const GridElement *el, float zoom);
-void GetElementSnapLines(const GridElement *el, float xOut[5], int *xCount, float yOut[5], int *yCount);
+void GetElementSnapLines(const GridElement *el, float xOut[8], int *xCount, float yOut[8], int *yCount);
 void GetElementSnapPoints(const GridElement *el, Vector2 points[MAX_POLYLINE_POINTS], int *pointCount);
 AABB GetElementAABB(GridElement *el);
 HandleType HitTestHandles(const GridElement *el, Vector2 worldPos, float zoom);

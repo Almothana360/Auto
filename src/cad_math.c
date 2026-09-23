@@ -17,6 +17,7 @@ static unsigned int g_NextEntityID = 1;
 unsigned int GenerateEntityID(void) {
     return g_NextEntityID++;
 }
+
 void SetNextEntityID(unsigned int id) {
     g_NextEntityID = id;
 }
@@ -25,6 +26,7 @@ static unsigned int g_NextLayerID = 1;
 unsigned int GenerateLayerID(void) {
     return g_NextLayerID++;
 }
+
 void SetNextLayerID(unsigned int id) {
     g_NextLayerID = id;
 }
@@ -109,7 +111,6 @@ bool Calculate3PointArc(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *center, flo
 void GetLocalControlNodePositions(const GridElement *el, Vector2 nodes[8]) {
     float halfW = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusX : el->width * 0.5f);
     float halfH = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusY : el->height * 0.5f);
-
     nodes[HANDLE_TOP_LEFT]     = (Vector2){ -halfW, -halfH };
     nodes[HANDLE_TOP_CENTER]   = (Vector2){  0.0f,  -halfH };
     nodes[HANDLE_TOP_RIGHT]    = (Vector2){  halfW, -halfH };
@@ -126,7 +127,7 @@ Vector2 GetLocalRotationHandlePosition(const GridElement *el, float zoom) {
     return (Vector2){ 0.0f, -halfH - offset };
 }
 
-void GetElementSnapLines(const GridElement *el, float xOut[5], int *xCount, float yOut[5], int *yCount) {
+void GetElementSnapLines(const GridElement *el, float xOut[8], int *xCount, float yOut[8], int *yCount) {
     *xCount = 0;
     *yCount = 0;
     if (el->type == ELEMENT_RECT || el->type == ELEMENT_CIRCLE || el->type == ELEMENT_ELLIPSE || el->type == ELEMENT_TEXT_NOTE) {
@@ -138,14 +139,48 @@ void GetElementSnapLines(const GridElement *el, float xOut[5], int *xCount, floa
         };
         for (int i = 0; i < 5; i++) {
             Vector2 worldPt = LocalToWorldPoint(localPts[i], el->pos, el->rotation);
-            if (*xCount < 5) xOut[(*xCount)++] = worldPt.x;
-            if (*yCount < 5) yOut[(*yCount)++] = worldPt.y;
+            if (*xCount < 8) xOut[(*xCount)++] = worldPt.x;
+            if (*yCount < 8) yOut[(*yCount)++] = worldPt.y;
         }
     } else if (el->type == ELEMENT_LINE || el->type == ELEMENT_DIMENSION) {
         xOut[0] = el->p1.x; xOut[1] = (el->p1.x + el->p2.x) * 0.5f; xOut[2] = el->p2.x;
         *xCount = 3;
         yOut[0] = el->p1.y; yOut[1] = (el->p1.y + el->p2.y) * 0.5f; yOut[2] = el->p2.y;
         *yCount = 3;
+    } else if (el->type == ELEMENT_SYMBOL) {
+        if (strchr(el->text, '|') != NULL) {
+            float fw = el->width;
+            float fh = el->height;
+            float ft = el->radius;
+            if (fw <= 0.0f) fw = 19.1f;
+            if (fh <= 0.0f) fh = 152.4f;
+            if (ft <= 0.0f) ft = 63.5f;
+            float leftX = fw - ft;
+            float rightX = fw;
+            float midX = fw - (ft * 0.5f);
+            float topY = -fh * 0.5f;
+            float botY = fh * 0.5f;
+            Vector2 pts[8] = {
+                { leftX, topY },
+                { midX,  topY },
+                { rightX, topY },
+                { rightX, 0.0f },
+                { rightX, botY },
+                { midX,  botY },
+                { leftX, botY },
+                { leftX, 0.0f }
+            };
+            for (int i = 0; i < 8; i++) {
+                Vector2 wpt = LocalToWorldPoint(pts[i], el->pos, el->rotation);
+                if (*xCount < 8) xOut[(*xCount)++] = wpt.x;
+                if (*yCount < 8) yOut[(*yCount)++] = wpt.y;
+            }
+        } else {
+            xOut[0] = el->pos.x;
+            *xCount = 1;
+            yOut[0] = el->pos.y;
+            *yCount = 1;
+        }
     }
 }
 
@@ -181,6 +216,39 @@ void GetElementSnapPoints(const GridElement *el, Vector2 points[MAX_POLYLINE_POI
     } else if (el->type == ELEMENT_ARC) {
         points[0] = el->p1; points[1] = el->p2; points[2] = el->p3; points[3] = el->pos;
         *pointCount = 4;
+    } else if (el->type == ELEMENT_SYMBOL) {
+        if (strchr(el->text, '|') != NULL) {
+            float fw = el->width;
+            float fh = el->height;
+            float ft = el->radius;
+            if (fw <= 0.0f) fw = 19.1f;
+            if (fh <= 0.0f) fh = 152.4f;
+            if (ft <= 0.0f) ft = 63.5f;
+            float leftX = fw - ft;
+            float rightX = fw;
+            float midX = fw - (ft * 0.5f);
+            float topY = -fh * 0.5f;
+            float botY = fh * 0.5f;
+
+            // 8 Perimeter Snap Points matching the bounding envelope
+            Vector2 local8[8] = {
+                { leftX,  topY },
+                { midX,   topY },
+                { rightX, topY },
+                { rightX, 0.0f },
+                { rightX, botY },
+                { midX,   botY },
+                { leftX,  botY },
+                { leftX,  0.0f }
+            };
+            for (int i = 0; i < 8; i++) {
+                points[i] = LocalToWorldPoint(local8[i], el->pos, el->rotation);
+            }
+            *pointCount = 8;
+        } else {
+            points[0] = el->pos;
+            *pointCount = 1;
+        }
     }
 }
 
@@ -188,7 +256,6 @@ AABB GetElementAABB(GridElement *el) {
     AABB box;
     box.min = (Vector2){ FLT_MAX, FLT_MAX };
     box.max = (Vector2){ -FLT_MAX, -FLT_MAX };
-
     switch (el->type) {
         case ELEMENT_RECT:
         case ELEMENT_TEXT_NOTE: {
@@ -260,7 +327,6 @@ AABB GetElementAABB(GridElement *el) {
         }
         case ELEMENT_SYMBOL: {
             if (strchr(el->text, '|') != NULL) {
-                // Weld neck flange bounds
                 float fw = el->width * el->scale.x;
                 float fh = el->height * el->scale.y;
                 float ft = el->radius * el->scale.x;
@@ -287,7 +353,6 @@ AABB GetElementAABB(GridElement *el) {
             break;
         }
     }
-
     if (el) el->bbox = box;
     return box;
 }

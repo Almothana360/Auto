@@ -12,49 +12,49 @@
 
 void ApplyRayguiTheme(int theme) {
     if (theme == UI_THEME_LIGHT) {
-        GuiSetStyle(DEFAULT,       BACKGROUND_COLOR,   ColorToInt((Color){ 240, 242, 245, 255 }));
-        GuiSetStyle(DEFAULT,       BASE_COLOR_NORMAL,  ColorToInt((Color){ 225, 228, 233, 255 }));
-        GuiSetStyle(DEFAULT,       BASE_COLOR_FOCUSED, ColorToInt((Color){ 210, 215, 224, 255 }));
-        GuiSetStyle(DEFAULT,       BASE_COLOR_PRESSED, ColorToInt((Color){ 195, 202, 215, 255 }));
+        GuiSetStyle(DEFAULT,       BACKGROUND_COLOR,    ColorToInt((Color){ 240, 242, 245, 255 }));
+        GuiSetStyle(DEFAULT,       BASE_COLOR_NORMAL,   ColorToInt((Color){ 225, 228, 233, 255 }));
+        GuiSetStyle(DEFAULT,       BASE_COLOR_FOCUSED,  ColorToInt((Color){ 210, 215, 224, 255 }));
+        GuiSetStyle(DEFAULT,       BASE_COLOR_PRESSED,  ColorToInt((Color){ 195, 202, 215, 255 }));
         GuiSetStyle(DEFAULT,       BORDER_COLOR_NORMAL, ColorToInt((Color){ 185, 190, 198, 255 }));
-        GuiSetStyle(DEFAULT,       BORDER_COLOR_FOCUSED, ColorToInt((Color){ 120, 140, 170, 255 }));
-        GuiSetStyle(DEFAULT,       BORDER_COLOR_PRESSED, ColorToInt((Color){ 90, 110, 140, 255 }));
+        GuiSetStyle(DEFAULT,       BORDER_COLOR_FOCUSED,ColorToInt((Color){ 120, 140, 170, 255 }));
+        GuiSetStyle(DEFAULT,       BORDER_COLOR_PRESSED,ColorToInt((Color){ 90, 110, 140, 255 }));
         GuiSetStyle(DEFAULT,       TEXT_COLOR_NORMAL,   ColorToInt((Color){ 30, 30, 30, 255 }));
         GuiSetStyle(DEFAULT,       TEXT_COLOR_FOCUSED,  ColorToInt((Color){ 10, 10, 10, 255 }));
         GuiSetStyle(DEFAULT,       TEXT_COLOR_PRESSED,  ColorToInt((Color){ 0, 0, 0, 255 }));
         GuiSetStyle(LABEL,         TEXT_COLOR_NORMAL,   ColorToInt((Color){ 30, 30, 30, 255 }));
-        GuiSetStyle(BUTTON,        BASE_COLOR_NORMAL,  ColorToInt((Color){ 220, 224, 230, 255 }));
+        GuiSetStyle(BUTTON,        BASE_COLOR_NORMAL,   ColorToInt((Color){ 220, 224, 230, 255 }));
         GuiSetStyle(BUTTON,        TEXT_COLOR_NORMAL,   ColorToInt((Color){ 25, 25, 25, 255 }));
         GuiSetStyle(BUTTON,        BORDER_COLOR_NORMAL, ColorToInt((Color){ 180, 185, 195, 255 }));
-        GuiSetStyle(TEXTBOX,       BASE_COLOR_NORMAL,  ColorToInt((Color){ 252, 252, 252, 255 }));
+        GuiSetStyle(TEXTBOX,       BASE_COLOR_NORMAL,   ColorToInt((Color){ 252, 252, 252, 255 }));
         GuiSetStyle(TEXTBOX,       TEXT_COLOR_NORMAL,   ColorToInt((Color){ 20, 20, 20, 255 }));
         GuiSetStyle(TEXTBOX,       BORDER_COLOR_NORMAL, ColorToInt((Color){ 180, 185, 195, 255 }));
-        GuiSetStyle(SLIDER,        BASE_COLOR_NORMAL,  ColorToInt((Color){ 205, 210, 218, 255 }));
+        GuiSetStyle(SLIDER,        BASE_COLOR_NORMAL,   ColorToInt((Color){ 205, 210, 218, 255 }));
         GuiSetStyle(SLIDER,        BORDER_COLOR_NORMAL, ColorToInt((Color){ 175, 180, 190, 255 }));
-        GuiSetStyle(CHECKBOX,      BASE_COLOR_NORMAL,  ColorToInt((Color){ 252, 252, 252, 255 }));
+        GuiSetStyle(CHECKBOX,      BASE_COLOR_NORMAL,   ColorToInt((Color){ 252, 252, 252, 255 }));
         GuiSetStyle(CHECKBOX,      TEXT_COLOR_NORMAL,   ColorToInt((Color){ 30, 30, 30, 255 }));
         GuiSetStyle(CHECKBOX,      BORDER_COLOR_NORMAL, ColorToInt((Color){ 180, 185, 195, 255 }));
     } else {
-        GuiSetStyle(DEFAULT,       BACKGROUND_COLOR,   ColorToInt((Color){ 38, 38, 38, 255 }));
-        GuiSetStyle(DEFAULT,       BASE_COLOR_NORMAL,  ColorToInt((Color){ 48, 48, 48, 255 }));
-        GuiSetStyle(DEFAULT,       BASE_COLOR_FOCUSED, ColorToInt((Color){ 62, 62, 62, 255 }));
-        GuiSetStyle(DEFAULT,       BASE_COLOR_PRESSED, ColorToInt((Color){ 75, 75, 75, 255 }));
+        GuiSetStyle(DEFAULT,       BACKGROUND_COLOR,    ColorToInt((Color){ 38, 38, 38, 255 }));
+        GuiSetStyle(DEFAULT,       BASE_COLOR_NORMAL,   ColorToInt((Color){ 48, 48, 48, 255 }));
+        GuiSetStyle(DEFAULT,       BASE_COLOR_FOCUSED,  ColorToInt((Color){ 62, 62, 62, 255 }));
+        GuiSetStyle(DEFAULT,       BASE_COLOR_PRESSED,  ColorToInt((Color){ 75, 75, 75, 255 }));
         GuiSetStyle(DEFAULT,       BORDER_COLOR_NORMAL, ColorToInt((Color){ 24, 24, 24, 255 }));
-        GuiSetStyle(DEFAULT,       BORDER_COLOR_FOCUSED, ColorToInt((Color){ 80, 80, 80, 255 }));
-        GuiSetStyle(DEFAULT,       BORDER_COLOR_PRESSED, ColorToInt((Color){ 100, 100, 100, 255 }));
+        GuiSetStyle(DEFAULT,       BORDER_COLOR_FOCUSED,ColorToInt((Color){ 80, 80, 80, 255 }));
+        GuiSetStyle(DEFAULT,       BORDER_COLOR_PRESSED,ColorToInt((Color){ 100, 100, 100, 255 }));
         GuiSetStyle(DEFAULT,       TEXT_COLOR_NORMAL,   ColorToInt((Color){ 230, 230, 230, 255 }));
         GuiSetStyle(DEFAULT,       TEXT_COLOR_FOCUSED,  ColorToInt((Color){ 255, 255, 255, 255 }));
         GuiSetStyle(DEFAULT,       TEXT_COLOR_PRESSED,  ColorToInt((Color){ 255, 255, 255, 255 }));
         GuiSetStyle(LABEL,         TEXT_COLOR_NORMAL,   ColorToInt((Color){ 220, 220, 220, 255 }));
-        GuiSetStyle(BUTTON,        BASE_COLOR_NORMAL,  ColorToInt((Color){ 52, 52, 52, 255 }));
+        GuiSetStyle(BUTTON,        BASE_COLOR_NORMAL,   ColorToInt((Color){ 52, 52, 52, 255 }));
         GuiSetStyle(BUTTON,        TEXT_COLOR_NORMAL,   ColorToInt((Color){ 230, 230, 230, 255 }));
         GuiSetStyle(BUTTON,        BORDER_COLOR_NORMAL, ColorToInt((Color){ 26, 26, 26, 255 }));
-        GuiSetStyle(TEXTBOX,       BASE_COLOR_NORMAL,  ColorToInt((Color){ 28, 28, 28, 255 }));
+        GuiSetStyle(TEXTBOX,       BASE_COLOR_NORMAL,   ColorToInt((Color){ 28, 28, 28, 255 }));
         GuiSetStyle(TEXTBOX,       TEXT_COLOR_NORMAL,   ColorToInt((Color){ 230, 230, 230, 255 }));
         GuiSetStyle(TEXTBOX,       BORDER_COLOR_NORMAL, ColorToInt((Color){ 20, 20, 20, 255 }));
-        GuiSetStyle(SLIDER,        BASE_COLOR_NORMAL,  ColorToInt((Color){ 44, 44, 44, 255 }));
+        GuiSetStyle(SLIDER,        BASE_COLOR_NORMAL,   ColorToInt((Color){ 44, 44, 44, 255 }));
         GuiSetStyle(SLIDER,        BORDER_COLOR_NORMAL, ColorToInt((Color){ 24, 24, 24, 255 }));
-        GuiSetStyle(CHECKBOX,      BASE_COLOR_NORMAL,  ColorToInt((Color){ 28, 28, 28, 255 }));
+        GuiSetStyle(CHECKBOX,      BASE_COLOR_NORMAL,   ColorToInt((Color){ 28, 28, 28, 255 }));
         GuiSetStyle(CHECKBOX,      TEXT_COLOR_NORMAL,   ColorToInt((Color){ 230, 230, 230, 255 }));
         GuiSetStyle(CHECKBOX,      BORDER_COLOR_NORMAL, ColorToInt((Color){ 24, 24, 24, 255 }));
     }
@@ -118,28 +118,30 @@ static bool s_flangeClassOpen = false;
 static bool s_flangeNpsOpen   = false;
 static float s_flangeNpsScrollOffset = 0.0f;
 
-/* Custom fully-opaque, scrollable combobox picker that fixes background bleed-through and large menus */
+/* Custom 100% opaque, scrollable combobox picker that completely prevents background transparency */
 static bool DrawOpaqueScrollablePicker(Rectangle bounds, const char *label, const char *items[], int itemCount, int *selectedIndex, bool *isOpen, float *scrollOffset, Color bgCol, Color borderCol, Font font, float uiScale) {
+    (void)font;
     bool changed = false;
-    float btnH = bounds.height;
     const char *currentLabel = (*selectedIndex >= 0 && *selectedIndex < itemCount) ? items[*selectedIndex] : label;
 
-    // Header toggle button
-    DrawRectangleRec(bounds, bgCol);
+    // Header toggle button - Draw opaque backing first
+    Color solidBg = { bgCol.r, bgCol.g, bgCol.b, 255 };
+    DrawRectangleRec(bounds, solidBg);
     DrawRectangleLinesEx(bounds, 1.0f, borderCol);
+
     if (GuiButton(bounds, TextFormat("%s: %s %s", label, currentLabel, *isOpen ? "[^]" : "[v]"))) {
         *isOpen = !(*isOpen);
     }
 
-    // Dropdown list container
+    // Dropdown list container rendered with full 255 opacity
     if (*isOpen) {
         float itemH = 22.0f * uiScale;
         int maxVisible = 6;
         float viewH = fminf((float)itemCount, (float)maxVisible) * itemH;
         Rectangle popRect = { bounds.x, bounds.y + bounds.height + 2.0f, bounds.width, viewH };
 
-        // Draw solid opaque background behind the list items
-        DrawRectangleRec(popRect, bgCol);
+        // 100% Solid Opaque Backing Rectangles
+        DrawRectangleRec(popRect, solidBg);
         DrawRectangleLinesEx(popRect, 1.5f, borderCol);
 
         // Handle mouse wheel scrolling
@@ -149,6 +151,7 @@ static bool DrawOpaqueScrollablePicker(Rectangle bounds, const char *label, cons
                 *scrollOffset -= wheel * itemH;
             }
         }
+
         float maxScroll = fmaxf(0.0f, (itemCount * itemH) - viewH);
         if (*scrollOffset < 0.0f) *scrollOffset = 0.0f;
         if (*scrollOffset > maxScroll) *scrollOffset = maxScroll;
@@ -157,11 +160,14 @@ static bool DrawOpaqueScrollablePicker(Rectangle bounds, const char *label, cons
         for (int i = 0; i < itemCount; i++) {
             float itemY = popRect.y + (i * itemH) - *scrollOffset;
             if (itemY + itemH < popRect.y || itemY > popRect.y + popRect.height) continue;
-
             Rectangle itemBtnRect = { popRect.x + 2.0f, itemY, popRect.width - (maxScroll > 0 ? 14.0f : 4.0f), itemH - 1.0f };
+
+            // Draw solid opaque base for every item button to guarantee zero bleed-through
+            DrawRectangleRec(itemBtnRect, solidBg);
+
             bool isCur = (i == *selectedIndex);
             if (isCur) {
-                DrawRectangleRec(itemBtnRect, Fade(GOLD, 0.25f));
+                DrawRectangleRec(itemBtnRect, Fade(GOLD, 0.35f));
             }
             if (GuiButton(itemBtnRect, TextFormat("%s %s", isCur ? ">" : " ", items[i]))) {
                 *selectedIndex = i;
@@ -176,7 +182,7 @@ static bool DrawOpaqueScrollablePicker(Rectangle bounds, const char *label, cons
             float scrollThumbY = popRect.y + (*scrollOffset / maxScroll) * (viewH - scrollThumbH);
             Rectangle scrollTrack = { popRect.x + popRect.width - 10.0f, popRect.y, 8.0f, viewH };
             Rectangle scrollThumb = { popRect.x + popRect.width - 10.0f, scrollThumbY, 8.0f, scrollThumbH };
-            DrawRectangleRec(scrollTrack, Fade(BLACK, 0.2f));
+            DrawRectangleRec(scrollTrack, Fade(BLACK, 0.4f));
             DrawRectangleRec(scrollThumb, borderCol);
         }
         EndScissorMode();
@@ -254,7 +260,6 @@ bool CheckGuiHover_Raygui(AppContext *app) {
 void RenderAllGuiPanels_Raygui(AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
-
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
     float dockY = menuBarHeight;
@@ -300,7 +305,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         app->openFileMenu = !prev;
     }
     mBtnX += mBtnW + spacing;
-
     if (GuiButton((Rectangle){ mBtnX, mBtnY, mBtnW, mBtnH }, "Edit")) {
         clickedTopMenuButton = true;
         bool prev = app->openEditMenu;
@@ -308,7 +312,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         app->openEditMenu = !prev;
     }
     mBtnX += mBtnW + spacing;
-
     if (GuiButton((Rectangle){ mBtnX, mBtnY, mBtnW + 15.0f * app->uiScale, mBtnH }, "Window")) {
         clickedTopMenuButton = true;
         bool prev = app->openWindowMenu;
@@ -316,7 +319,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         app->openWindowMenu = !prev;
     }
     mBtnX += mBtnW + 15.0f * app->uiScale + spacing;
-
     if (GuiButton((Rectangle){ mBtnX, mBtnY, mBtnW + 15.0f * app->uiScale, mBtnH }, "Element")) {
         clickedTopMenuButton = true;
         bool prev = app->openElementMenu;
@@ -324,7 +326,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         app->openElementMenu = !prev;
     }
     mBtnX += mBtnW + 15.0f * app->uiScale + spacing;
-
     if (GuiButton((Rectangle){ mBtnX, mBtnY, mBtnW + 25.0f * app->uiScale, mBtnH }, "Functions")) {
         clickedTopMenuButton = true;
         bool prev = app->openFunctionsMenu;
@@ -348,7 +349,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         DrawRectangleRec(lHeader, subBg);
         DrawLine((int)curLeftX, (int)(dockY + 26.0f * app->uiScale), (int)(curLeftX + leftDockW), (int)(dockY + 26.0f * app->uiScale), pBorder);
         DrawTextEx(bodyFont, "Project Workspace", (Vector2){ curLeftX + 10.0f * app->uiScale, dockY + 6.0f * app->uiScale }, 12.0f * app->uiScale, 1.0f, pText);
-
         if (GuiButton((Rectangle){ curLeftX + leftDockW - 30.0f * app->uiScale, dockY + 3.0f * app->uiScale, 24.0f * app->uiScale, 20.0f * app->uiScale }, "<")) {
             app->showLeftDock = false;
         }
@@ -385,7 +385,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             float lx = layersBox.x + 4.0f * app->uiScale;
             float bWidth = 18.0f * app->uiScale;
             bool isTargetActive = (i == app->activeLayerIndex);
-
             if (GuiButton((Rectangle){ lx, rowY, bWidth, itemH }, isTargetActive ? ">" : " ")) {
                 app->activeLayerIndex = i;
                 g_CADState.activeLayerIndex = i;
@@ -455,8 +454,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         float elRowY = elemsBox.y + 26.0f * app->uiScale;
         int maxVisibleElems = (int)((elemsBox.height - 30.0f * app->uiScale) / (itemH + 2.0f));
         if (maxVisibleElems < 1) maxVisibleElems = 1;
-
         bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
+
         for (int i = 0; i < app->elementCount && i < maxVisibleElems; i++) {
             const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rect" :
                                   (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" :
@@ -470,6 +469,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
             char itemLabel[64];
             snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
+
             Rectangle itemRect = { elemsBox.x + 4.0f * app->uiScale, elRowY, elemsBox.width - 8.0f * app->uiScale, itemH };
             if (GuiButton(itemRect, itemLabel)) {
                 if (!isCtrl) DeselectAllElements(app->elements, app->elementCount);
@@ -482,6 +482,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
     // 3. Animated Right Dock (Inspector)
     int selectedCount = CountSelectedElements(app->elements, app->elementCount);
     int selectedElementIndex = GetFirstSelectedIndex(app->elements, app->elementCount);
+
     if (!app->showRightDock && app->uiAnim.rightDockProgress <= 0.05f) {
         Rectangle rToggleRect = { winW - 32.0f * app->uiScale, dockY + 4, 28.0f * app->uiScale, 24.0f * app->uiScale };
         DrawRectangleRec(rToggleRect, pBg);
@@ -513,14 +514,15 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
 
             const char *title = isFlange ? "Type: Weld Neck Flange (ASME B16.5)" :
                                 ((el->type == ELEMENT_RECT) ? "Type: Rectangle" :
-                                (el->type == ELEMENT_CIRCLE ? "Type: Circle" :
-                                (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" :
-                                (el->type == ELEMENT_ARC ? "Type: Arc" :
-                                (el->type == ELEMENT_TEXT_NOTE ? "Type: Text Note" :
-                                (el->type == ELEMENT_POLYLINE ? "Type: Polyline" :
-                                (el->type == ELEMENT_FREEHAND ? "Type: Freehand" :
-                                (el->type == ELEMENT_LINE ? "Type: Line" :
-                                (el->type == ELEMENT_SYMBOL ? "Type: Symbol / Inst" : "Type: Dimension")))))))));
+                                ((el->type == ELEMENT_CIRCLE) ? "Type: Circle" :
+                                ((el->type == ELEMENT_ELLIPSE) ? "Type: Ellipse" :
+                                ((el->type == ELEMENT_ARC) ? "Type: Arc" :
+                                ((el->type == ELEMENT_TEXT_NOTE) ? "Type: Text Note" :
+                                ((el->type == ELEMENT_POLYLINE) ? "Type: Polyline" :
+                                ((el->type == ELEMENT_FREEHAND) ? "Type: Freehand" :
+                                ((el->type == ELEMENT_LINE) ? "Type: Line" :
+                                ((el->type == ELEMENT_SYMBOL) ? "Type: Symbol / Inst" : "Type: Dimension")))))))));
+
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, title); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Entity ID: %u", el->id)); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y)); inspY += btnH;
@@ -567,7 +569,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             }
             inspY += btnH + spacing;
 
-            // Flange-Specific Class & NPS Dropdowns (Opaque, Scrollable, Non-Bleeding)
+            // Flange-Specific Class & NPS Dropdowns (Non-transparent, solid background)
             if (isFlange) {
                 const FlangeDatabase *db = Flange_GetDatabase();
                 char curClass[16] = "150#";
@@ -615,7 +617,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     npsList[s] = db->classes[activeClassIdx].records[s].nps;
                     if (strcmp(db->classes[activeClassIdx].records[s].nps, curNps) == 0) activeNpsIdx = s;
                 }
-
                 Rectangle npsPickerRect = { inspX, inspY, inspW, pickerH };
                 int selectedNpsIdx = activeNpsIdx;
                 if (DrawOpaqueScrollablePicker(npsPickerRect, "NPS", npsList, db->classes[activeClassIdx].recordCount, &selectedNpsIdx, &s_flangeNpsOpen, &s_flangeNpsScrollOffset, pBg, pBorder, bodyFont, app->uiScale)) {
@@ -658,7 +659,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             }
             inspY += btnH + spacing;
 
-            // SCALE SLIDER: Made strictly uneditable for flanges per specification
+            // SCALE SLIDER: Locked and uneditable for standard Flanges
             if (isFlange) {
                 GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, "Scale: 1.00 (Locked by ASME Standard)"); inspY += btnH + spacing;
             } else {
@@ -668,7 +669,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 inspY += btnH + spacing;
             }
 
-            // LINE THICKNESS SLIDER: Available for all element types
+            // LINE THICKNESS SLIDER
             if (el->lineThickness <= 0.0f) el->lineThickness = 3.0f;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Line Thickness: %.1f", el->lineThickness)); inspY += btnH;
             if (GuiSliderBar((Rectangle){ inspX, inspY, inspW, btnH }, "", "", &el->lineThickness, 1.0f, 12.0f)) {
@@ -741,7 +742,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 }
             }
             inspY += (btnH + spacing) * 2;
-
             if (el->useCustomColor && GuiButton((Rectangle){ inspX, inspY, inspW, btnH }, "Reset to Layer Color")) {
                 Command cmd = { 0 };
                 cmd.type = CMD_TRANSFORM;
@@ -810,6 +810,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
 
         GuiLabel((Rectangle){ sX, sY, 150.0f * app->uiScale, sH }, TextFormat("Tool: %s", toolName));
         sX += 155.0f * app->uiScale;
+
         GuiLabel((Rectangle){ sX, sY, 160.0f * app->uiScale, sH }, TextFormat("Elements: %d (Sel: %d)", app->elementCount, CountSelectedElements(app->elements, app->elementCount)));
     }
 
@@ -872,7 +873,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         DrawRectangleLinesEx(ctxMenuRect, 1.0f, Fade(pBorder, app->uiAnim.contextMenuProgress));
 
         BeginScissorMode((int)ctxMenuRect.x, (int)ctxMenuRect.y, (int)ctxMenuRect.width, (int)ctxMenuRect.height);
-
         float cX = ctxMenuRect.x + 4.0f * app->uiScale;
         float cY = ctxMenuRect.y + 6.0f * app->uiScale;
         float cW = ctxMenuRect.width - 8.0f * app->uiScale;
@@ -889,7 +889,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 snprintf(app->statusMessage, 64, "Element Deleted");
                 app->statusMessageTimer = 1.5f;
             } cY += cH + 2;
-
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Send Back (1 Step)")) {
                 int targetLayer = app->elements[app->contextElementIndex].layerIndex;
                 int prevSameLayerIdx = -1;
@@ -905,7 +904,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 }
                 app->showContextMenu = false;
             } cY += cH + 2;
-
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Send to Backmost")) {
                 int targetLayer = app->elements[app->contextElementIndex].layerIndex;
                 int firstSameLayerIdx = -1;
@@ -921,7 +919,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 }
                 app->showContextMenu = false;
             } cY += cH + 2;
-
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Bring to Active Layer")) {
                 Command cmd = { 0 };
                 cmd.type = CMD_LAYER_CHANGE;
@@ -931,7 +928,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                 ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                 app->showContextMenu = false;
             } cY += cH + 2;
-
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Duplicate Element")) {
                 if (app->elementCount < MAX_ELEMENTS) {
                     GridElement dup = app->elements[app->contextElementIndex];
@@ -951,7 +947,6 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                     app->statusMessageTimer = 1.5f;
                 }
             } cY += cH + 2;
-
             if (GuiButton((Rectangle){ cX, cY, cW, cH }, "Deselect Elements")) {
                 DeselectAllElements(app->elements, app->elementCount);
                 app->showContextMenu = false;

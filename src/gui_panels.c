@@ -47,7 +47,6 @@ void ApplyMicroUiTheme(mu_Context *ctx, int theme) {
 void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
-
     float menuBarHeight = 32.0f * app->uiScale;
     float bottomStripH = 34.0f * app->uiScale;
     float dockY = menuBarHeight;
@@ -229,6 +228,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     for (int i = 0; i < app->layerCount; i++) {
                         mu_push_id(mu_ctx, &app->layers[i], sizeof(Layer*));
                         mu_layout_row(mu_ctx, 8, lCols, (int)(19 * app->uiScale));
+
                         bool isTargetActive = (i == app->activeLayerIndex);
                         if (mu_button(mu_ctx, isTargetActive ? ">" : " ")) {
                             app->activeLayerIndex = i;
@@ -276,6 +276,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     mu_layout_row(mu_ctx, 2, (int[]){ -95, -1 }, (int)(20 * app->uiScale));
                     mu_text(mu_ctx, TextFormat("Elements (%d)", app->elementCount));
                     if (mu_button(mu_ctx, "Deselect")) DeselectAllElements(app->elements, app->elementCount);
+
                     bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
                     for (int i = 0; i < app->elementCount; i++) {
                         mu_push_id(mu_ctx, &app->elements[i], sizeof(GridElement*));
@@ -292,6 +293,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     }
                     mu_end_window(mu_ctx);
                 }
+
                 mu_end_window(mu_ctx);
             }
         }
@@ -350,7 +352,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         cmd.data.layerChange.newLayer = app->activeLayerIndex;
                         ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                     }
-
                     if (mu_button(mu_ctx, "Send Back (1 Step)")) {
                         int targetLayer = el->layerIndex;
                         int prevSameLayerIdx = -1;
@@ -365,7 +366,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
-
                     if (mu_button(mu_ctx, "Send to Backmost")) {
                         int targetLayer = el->layerIndex;
                         int firstSameLayerIdx = -1;
@@ -381,7 +381,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                         }
                     }
 
-                    // Flange Rating Dropdown Properties
+                    // Flange Rating Dropdown Properties (Solid background panel styling)
                     if (isFlange) {
                         const FlangeDatabase *db = Flange_GetDatabase();
                         char curClass[16] = "150#";
@@ -396,11 +396,10 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             strncpy(curNps, sep + 1, sizeof(curNps) - 1);
                             curNps[sizeof(curNps) - 1] = '\0';
                         }
-
                         mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
                         mu_text(mu_ctx, "--- ASME B16.5 Ratings ---");
 
-                        // Class Tree/Dropdown
+                        // Class Tree/Dropdown with solid framed panel
                         if (mu_begin_treenode(mu_ctx, TextFormat("Class: %s", curClass))) {
                             for (int c = 0; c < db->classCount; c++) {
                                 mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
@@ -420,7 +419,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             mu_end_treenode(mu_ctx);
                         }
 
-                        // NPS Tree/Dropdown
+                        // NPS Tree/Dropdown with solid framed panel
                         if (mu_begin_treenode(mu_ctx, TextFormat("NPS: %s", curNps))) {
                             int activeClassIdx = 0;
                             for (int c = 0; c < db->classCount; c++) {
@@ -446,7 +445,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             }
                             mu_end_treenode(mu_ctx);
                         }
-
                         mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
                         mu_text(mu_ctx, TextFormat("Thickness (fw): %.1f mm", el->width));
                         mu_text(mu_ctx, TextFormat("Height (fh): %.1f mm", el->height));
@@ -480,9 +478,9 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
-
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
-                    // LINE THICKNESS SLIDER: Available for all element types
+
+                    // LINE THICKNESS SLIDER
                     if (el->lineThickness <= 0.0f) el->lineThickness = 3.0f;
                     mu_text(mu_ctx, TextFormat("Line Thickness: %.1f", el->lineThickness));
                     if (mu_slider(mu_ctx, &el->lineThickness, 1.0f, 12.0f)) {
@@ -536,7 +534,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                             ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
                         }
                     }
-
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(20 * app->uiScale));
                     if (el->useCustomColor && mu_button(mu_ctx, "Reset to Layer Color")) {
                         Command cmd = { 0 };
@@ -583,7 +580,6 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     app->uiConfig.snapToGrid = app->snapToGrid;
                     SaveUiConfig(CONFIG_FILENAME, &app->uiConfig);
                 }
-
                 int snapElemInt = app->snapEnabled ? 1 : 0;
                 if (mu_checkbox(mu_ctx, "Snap Elem", &snapElemInt)) {
                     app->snapEnabled = (snapElemInt != 0);
@@ -763,6 +759,5 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             mu_end_window(mu_ctx);
         }
     }
-
     mu_end(mu_ctx);
 }
