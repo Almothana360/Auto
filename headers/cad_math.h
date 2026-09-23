@@ -12,6 +12,7 @@ bool AABBContainsPoint(AABB a, Vector2 p);
 AABB ExpandAABB(AABB box, float margin);
 float SnapAngle(float angleDeg, bool isSnapActive);
 bool Calculate3PointArc(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *center, float *radius, float *startAngle, float *endAngle);
+void GetElementLocalExtents(const GridElement *el, float *minX, float *maxX, float *minY, float *maxY);
 void GetLocalControlNodePositions(const GridElement *el, Vector2 nodes[8]);
 Vector2 GetLocalRotationHandlePosition(const GridElement *el, float zoom);
 void GetElementSnapLines(const GridElement *el, float xOut[8], int *xCount, float yOut[8], int *yCount);

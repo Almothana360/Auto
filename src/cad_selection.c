@@ -7,6 +7,7 @@
 #include "raymath.h"
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool overUI, int selectedCount) {
     bool isCtrlDown = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
@@ -59,23 +60,24 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                     float angleDeg = angleRad * RAD2DEG + 90.0f;
                     bool snapShift = IsKeyDown(KEY_LEFT_SHIFT) || IsKeyDown(KEY_RIGHT_SHIFT) || app->snapToGrid || app->snapEnabled;
                     el->rotation = SnapAngle(angleDeg, snapShift);
-                } else if (el->type == ELEMENT_RECT || el->type == ELEMENT_TEXT_NOTE) {
-                    float origW = app->initialHandleElementState.width;
-                    float origH = app->initialHandleElementState.height;
-                    float halfW = origW * 0.5f;
-                    float halfH = origH * 0.5f;
-                    float left = -halfW, right = halfW, top = -halfH, bottom = halfH;
+                } else {
+                    // Universal scale/resizing accommodation for all elements based on 8 bounding handles
+                    float minX, maxX, minY, maxY;
+                    GetElementLocalExtents(&app->initialHandleElementState, &minX, &maxX, &minY, &maxY);
+                    float left = minX, right = maxX, top = minY, bottom = maxY;
+
                     switch (app->activeHandle) {
-                        case HANDLE_TOP_LEFT: left = localMouse.x; top = localMouse.y; break;
-                        case HANDLE_TOP_CENTER: top = localMouse.y; break;
-                        case HANDLE_TOP_RIGHT: right = localMouse.x; top = localMouse.y; break;
+                        case HANDLE_TOP_LEFT:     left = localMouse.x; top = localMouse.y; break;
+                        case HANDLE_TOP_CENTER:   top = localMouse.y; break;
+                        case HANDLE_TOP_RIGHT:    right = localMouse.x; top = localMouse.y; break;
                         case HANDLE_RIGHT_CENTER: right = localMouse.x; break;
                         case HANDLE_BOTTOM_RIGHT: right = localMouse.x; bottom = localMouse.y; break;
-                        case HANDLE_BOTTOM_CENTER: bottom = localMouse.y; break;
-                        case HANDLE_BOTTOM_LEFT: left = localMouse.x; bottom = localMouse.y; break;
-                        case HANDLE_LEFT_CENTER: left = localMouse.x; break;
+                        case HANDLE_BOTTOM_CENTER:bottom = localMouse.y; break;
+                        case HANDLE_BOTTOM_LEFT:  left = localMouse.x; bottom = localMouse.y; break;
+                        case HANDLE_LEFT_CENTER:  left = localMouse.x; break;
                         default: break;
                     }
+
                     if (right - left < MIN_ELEMENT_SIZE) {
                         if (app->activeHandle == HANDLE_LEFT_CENTER || app->activeHandle == HANDLE_TOP_LEFT || app->activeHandle == HANDLE_BOTTOM_LEFT) left = right - MIN_ELEMENT_SIZE;
                         else right = left + MIN_ELEMENT_SIZE;
@@ -84,21 +86,32 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         if (app->activeHandle == HANDLE_TOP_CENTER || app->activeHandle == HANDLE_TOP_LEFT || app->activeHandle == HANDLE_TOP_RIGHT) top = bottom - MIN_ELEMENT_SIZE;
                         else bottom = top + MIN_ELEMENT_SIZE;
                     }
+
                     float newW = right - left;
                     float newH = bottom - top;
-                    Vector2 localCenter = { (left + right) * 0.5f, (top + bottom) * 0.5f };
-                    el->width = newW;
-                    el->height = newH;
-                    el->pos = LocalToWorldPoint(localCenter, app->initialHandleElementState.pos, app->initialHandleElementState.rotation);
-                } else if (el->type == ELEMENT_CIRCLE) {
-                    float dist = Vector2Length(localMouse);
-                    if (dist < MIN_ELEMENT_SIZE) dist = MIN_ELEMENT_SIZE;
-                    el->radius = dist;
-                } else if (el->type == ELEMENT_ELLIPSE) {
-                    float distPointX = fabsf(localMouse.x);
-                    float distPointY = fabsf(localMouse.y);
-                    if (distPointX > MIN_ELEMENT_SIZE) el->radiusX = distPointX;
-                    if (distPointY > MIN_ELEMENT_SIZE) el->radiusY = distPointY;
+                    float origW = maxX - minX;
+                    float origH = maxY - minY;
+
+                    if (el->type == ELEMENT_RECT || el->type == ELEMENT_TEXT_NOTE) {
+                        Vector2 localCenter = { (left + right) * 0.5f, (top + bottom) * 0.5f };
+                        el->width = newW;
+                        el->height = newH;
+                        el->pos = LocalToWorldPoint(localCenter, app->initialHandleElementState.pos, app->initialHandleElementState.rotation);
+                    } else if (el->type == ELEMENT_CIRCLE) {
+                        float dist = Vector2Length(localMouse);
+                        if (dist < MIN_ELEMENT_SIZE) dist = MIN_ELEMENT_SIZE;
+                        el->radius = dist;
+                    } else if (el->type == ELEMENT_ELLIPSE) {
+                        float distPointX = fabsf(localMouse.x);
+                        float distPointY = fabsf(localMouse.y);
+                        if (distPointX > MIN_ELEMENT_SIZE) el->radiusX = distPointX;
+                        if (distPointY > MIN_ELEMENT_SIZE) el->radiusY = distPointY;
+                    } else if (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL) {
+                        // Flanges maintain physical standard dimensions, rotation handled cleanly
+                    } else {
+                        if (origW > 0.001f) el->scale.x = fmaxf(0.1f, app->initialHandleElementState.scale.x * (newW / origW));
+                        if (origH > 0.001f) el->scale.y = fmaxf(0.1f, app->initialHandleElementState.scale.y * (newH / origH));
+                    }
                 }
                 GetElementAABB(el);
                 app->spatialIndexDirty = true;

@@ -108,102 +108,147 @@ bool Calculate3PointArc(Vector2 p1, Vector2 p2, Vector2 p3, Vector2 *center, flo
     return true;
 }
 
+/* Generalized helper to determine an element's local rectangular bounding extents */
+void GetElementLocalExtents(const GridElement *el, float *minX, float *maxX, float *minY, float *maxY) {
+    if (!el) {
+        *minX = -10.0f; *maxX = 10.0f; *minY = -10.0f; *maxY = 10.0f;
+        return;
+    }
+    switch (el->type) {
+        case ELEMENT_RECT:
+        case ELEMENT_TEXT_NOTE: {
+            float hw = (el->width > 0.0f ? el->width : 20.0f) * 0.5f * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+            float hh = (el->height > 0.0f ? el->height : 20.0f) * 0.5f * (el->scale.y > 0.0f ? el->scale.y : 1.0f);
+            *minX = -hw; *maxX = hw;
+            *minY = -hh; *maxY = hh;
+            break;
+        }
+        case ELEMENT_CIRCLE: {
+            float r = (el->radius > 0.0f ? el->radius : 20.0f) * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+            *minX = -r; *maxX = r;
+            *minY = -r; *maxY = r;
+            break;
+        }
+        case ELEMENT_ELLIPSE: {
+            float rx = (el->radiusX > 0.0f ? el->radiusX : 20.0f) * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+            float ry = (el->radiusY > 0.0f ? el->radiusY : 20.0f) * (el->scale.y > 0.0f ? el->scale.y : 1.0f);
+            *minX = -rx; *maxX = rx;
+            *minY = -ry; *maxY = ry;
+            break;
+        }
+        case ELEMENT_ARC: {
+            float r = (el->radius > 0.0f ? el->radius : 20.0f) * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+            *minX = -r; *maxX = r;
+            *minY = -r; *maxY = r;
+            break;
+        }
+        case ELEMENT_LINE: {
+            Vector2 lp1 = WorldToLocalPoint(el->p1, el->pos, el->rotation);
+            Vector2 lp2 = WorldToLocalPoint(el->p2, el->pos, el->rotation);
+            *minX = fminf(lp1.x, lp2.x) - 4.0f;
+            *maxX = fmaxf(lp1.x, lp2.x) + 4.0f;
+            *minY = fminf(lp1.y, lp2.y) - 4.0f;
+            *maxY = fmaxf(lp1.y, lp2.y) + 4.0f;
+            break;
+        }
+        case ELEMENT_DIMENSION: {
+            Vector2 lp1 = WorldToLocalPoint(el->p1, el->pos, el->rotation);
+            Vector2 lp2 = WorldToLocalPoint(el->p2, el->pos, el->rotation);
+            Vector2 ldim = WorldToLocalPoint(el->dimPos, el->pos, el->rotation);
+            *minX = fminf(fminf(lp1.x, lp2.x), ldim.x) - 6.0f;
+            *maxX = fmaxf(fmaxf(lp1.x, lp2.x), ldim.x) + 6.0f;
+            *minY = fminf(fminf(lp1.y, lp2.y), ldim.y) - 6.0f;
+            *maxY = fmaxf(fmaxf(lp1.y, lp2.y), ldim.y) + 6.0f;
+            break;
+        }
+        case ELEMENT_POLYLINE:
+        case ELEMENT_FREEHAND: {
+            if (el->pointCount > 0) {
+                Vector2 lp0 = WorldToLocalPoint(el->points[0], el->pos, el->rotation);
+                *minX = lp0.x; *maxX = lp0.x;
+                *minY = lp0.y; *maxY = lp0.y;
+                for (int i = 1; i < el->pointCount && i < MAX_POLYLINE_POINTS; i++) {
+                    Vector2 lp = WorldToLocalPoint(el->points[i], el->pos, el->rotation);
+                    *minX = fminf(*minX, lp.x);
+                    *maxX = fmaxf(*maxX, lp.x);
+                    *minY = fminf(*minY, lp.y);
+                    *maxY = fmaxf(*maxY, lp.y);
+                }
+                *minX -= 4.0f; *maxX += 4.0f;
+                *minY -= 4.0f; *maxY += 4.0f;
+            } else {
+                *minX = -10.0f; *maxX = 10.0f; *minY = -10.0f; *maxY = 10.0f;
+            }
+            break;
+        }
+        case ELEMENT_SYMBOL: {
+            if (strchr(el->text, '|') != NULL) {
+                float fw = (el->width > 0.0f ? el->width : 19.1f) * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+                float fh = (el->height > 0.0f ? el->height : 152.4f) * (el->scale.y > 0.0f ? el->scale.y : 1.0f);
+                float ft = (el->radius > 0.0f ? el->radius : 63.5f) * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+                *minX = fw - ft;
+                *maxX = fw;
+                *minY = -fh * 0.5f;
+                *maxY =  fh * 0.5f;
+            } else {
+                float s = 20.0f * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
+                *minX = -s; *maxX = s;
+                *minY = -s; *maxY = s;
+            }
+            break;
+        }
+        default:
+            *minX = -20.0f; *maxX = 20.0f; *minY = -20.0f; *maxY = 20.0f;
+            break;
+    }
+}
+
 void GetLocalControlNodePositions(const GridElement *el, Vector2 nodes[8]) {
-    float halfW = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusX : el->width * 0.5f);
-    float halfH = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusY : el->height * 0.5f);
-    nodes[HANDLE_TOP_LEFT]     = (Vector2){ -halfW, -halfH };
-    nodes[HANDLE_TOP_CENTER]   = (Vector2){  0.0f,  -halfH };
-    nodes[HANDLE_TOP_RIGHT]    = (Vector2){  halfW, -halfH };
-    nodes[HANDLE_RIGHT_CENTER] = (Vector2){  halfW,  0.0f  };
-    nodes[HANDLE_BOTTOM_RIGHT] = (Vector2){  halfW,  halfH };
-    nodes[HANDLE_BOTTOM_CENTER]= (Vector2){  0.0f,   halfH };
-    nodes[HANDLE_BOTTOM_LEFT]  = (Vector2){ -halfW,  halfH };
-    nodes[HANDLE_LEFT_CENTER]  = (Vector2){ -halfW,  0.0f  };
+    float minX, maxX, minY, maxY;
+    GetElementLocalExtents(el, &minX, &maxX, &minY, &maxY);
+    float midX = (minX + maxX) * 0.5f;
+    float midY = (minY + maxY) * 0.5f;
+
+    nodes[HANDLE_TOP_LEFT]      = (Vector2){ minX, minY };
+    nodes[HANDLE_TOP_CENTER]    = (Vector2){ midX, minY };
+    nodes[HANDLE_TOP_RIGHT]     = (Vector2){ maxX, minY };
+    nodes[HANDLE_RIGHT_CENTER]  = (Vector2){ maxX, midY };
+    nodes[HANDLE_BOTTOM_RIGHT]  = (Vector2){ maxX, maxY };
+    nodes[HANDLE_BOTTOM_CENTER] = (Vector2){ midX, maxY };
+    nodes[HANDLE_BOTTOM_LEFT]   = (Vector2){ minX, maxY };
+    nodes[HANDLE_LEFT_CENTER]   = (Vector2){ minX, midY };
 }
 
 Vector2 GetLocalRotationHandlePosition(const GridElement *el, float zoom) {
-    float halfH = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusY : el->height * 0.5f);
+    float minX, maxX, minY, maxY;
+    GetElementLocalExtents(el, &minX, &maxX, &minY, &maxY);
+    float midX = (minX + maxX) * 0.5f;
     float offset = ROTATION_HANDLE_OFFSET / zoom;
-    return (Vector2){ 0.0f, -halfH - offset };
+    return (Vector2){ midX, minY - offset };
 }
 
 void GetElementSnapLines(const GridElement *el, float xOut[8], int *xCount, float yOut[8], int *yCount) {
     *xCount = 0;
     *yCount = 0;
-    if (el->type == ELEMENT_RECT || el->type == ELEMENT_CIRCLE || el->type == ELEMENT_ELLIPSE || el->type == ELEMENT_TEXT_NOTE) {
-        float halfW = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusX : el->width * 0.5f);
-        float halfH = (el->type == ELEMENT_CIRCLE) ? el->radius : (el->type == ELEMENT_ELLIPSE ? el->radiusY : el->height * 0.5f);
-        Vector2 localPts[5] = {
-            { 0, 0 }, { -halfW, -halfH }, { halfW, -halfH },
-            { -halfW, halfH }, { halfW, halfH }
-        };
-        for (int i = 0; i < 5; i++) {
-            Vector2 worldPt = LocalToWorldPoint(localPts[i], el->pos, el->rotation);
-            if (*xCount < 8) xOut[(*xCount)++] = worldPt.x;
-            if (*yCount < 8) yOut[(*yCount)++] = worldPt.y;
-        }
-    } else if (el->type == ELEMENT_LINE || el->type == ELEMENT_DIMENSION) {
+    if (el->type == ELEMENT_LINE || el->type == ELEMENT_DIMENSION) {
         xOut[0] = el->p1.x; xOut[1] = (el->p1.x + el->p2.x) * 0.5f; xOut[2] = el->p2.x;
         *xCount = 3;
         yOut[0] = el->p1.y; yOut[1] = (el->p1.y + el->p2.y) * 0.5f; yOut[2] = el->p2.y;
         *yCount = 3;
-    } else if (el->type == ELEMENT_SYMBOL) {
-        if (strchr(el->text, '|') != NULL) {
-            float fw = el->width;
-            float fh = el->height;
-            float ft = el->radius;
-            if (fw <= 0.0f) fw = 19.1f;
-            if (fh <= 0.0f) fh = 152.4f;
-            if (ft <= 0.0f) ft = 63.5f;
-            float leftX = fw - ft;
-            float rightX = fw;
-            float midX = fw - (ft * 0.5f);
-            float topY = -fh * 0.5f;
-            float botY = fh * 0.5f;
-            Vector2 pts[8] = {
-                { leftX, topY },
-                { midX,  topY },
-                { rightX, topY },
-                { rightX, 0.0f },
-                { rightX, botY },
-                { midX,  botY },
-                { leftX, botY },
-                { leftX, 0.0f }
-            };
-            for (int i = 0; i < 8; i++) {
-                Vector2 wpt = LocalToWorldPoint(pts[i], el->pos, el->rotation);
-                if (*xCount < 8) xOut[(*xCount)++] = wpt.x;
-                if (*yCount < 8) yOut[(*yCount)++] = wpt.y;
-            }
-        } else {
-            xOut[0] = el->pos.x;
-            *xCount = 1;
-            yOut[0] = el->pos.y;
-            *yCount = 1;
+    } else {
+        Vector2 localNodes[8];
+        GetLocalControlNodePositions(el, localNodes);
+        for (int i = 0; i < 8; i++) {
+            Vector2 worldPt = LocalToWorldPoint(localNodes[i], el->pos, el->rotation);
+            if (*xCount < 8) xOut[(*xCount)++] = worldPt.x;
+            if (*yCount < 8) yOut[(*yCount)++] = worldPt.y;
         }
     }
 }
 
 void GetElementSnapPoints(const GridElement *el, Vector2 points[MAX_POLYLINE_POINTS], int *pointCount) {
     *pointCount = 0;
-    if (el->type == ELEMENT_RECT || el->type == ELEMENT_TEXT_NOTE) {
-        Vector2 localNodes[8];
-        GetLocalControlNodePositions(el, localNodes);
-        points[0] = el->pos;
-        for (int i = 0; i < 8; i++) {
-            points[i + 1] = LocalToWorldPoint(localNodes[i], el->pos, el->rotation);
-        }
-        *pointCount = 9;
-    } else if (el->type == ELEMENT_CIRCLE || el->type == ELEMENT_ELLIPSE) {
-        points[0] = el->pos;
-        Vector2 localNodes[8];
-        GetLocalControlNodePositions(el, localNodes);
-        points[1] = LocalToWorldPoint(localNodes[HANDLE_LEFT_CENTER], el->pos, el->rotation);
-        points[2] = LocalToWorldPoint(localNodes[HANDLE_RIGHT_CENTER], el->pos, el->rotation);
-        points[3] = LocalToWorldPoint(localNodes[HANDLE_TOP_CENTER], el->pos, el->rotation);
-        points[4] = LocalToWorldPoint(localNodes[HANDLE_BOTTOM_CENTER], el->pos, el->rotation);
-        *pointCount = 5;
-    } else if (el->type == ELEMENT_DIMENSION || el->type == ELEMENT_LINE) {
+    if (el->type == ELEMENT_LINE || el->type == ELEMENT_DIMENSION) {
         points[0] = el->p1;
         points[1] = el->p2;
         points[2] = (Vector2){ (el->p1.x + el->p2.x) * 0.5f, (el->p1.y + el->p2.y) * 0.5f };
@@ -216,39 +261,14 @@ void GetElementSnapPoints(const GridElement *el, Vector2 points[MAX_POLYLINE_POI
     } else if (el->type == ELEMENT_ARC) {
         points[0] = el->p1; points[1] = el->p2; points[2] = el->p3; points[3] = el->pos;
         *pointCount = 4;
-    } else if (el->type == ELEMENT_SYMBOL) {
-        if (strchr(el->text, '|') != NULL) {
-            float fw = el->width;
-            float fh = el->height;
-            float ft = el->radius;
-            if (fw <= 0.0f) fw = 19.1f;
-            if (fh <= 0.0f) fh = 152.4f;
-            if (ft <= 0.0f) ft = 63.5f;
-            float leftX = fw - ft;
-            float rightX = fw;
-            float midX = fw - (ft * 0.5f);
-            float topY = -fh * 0.5f;
-            float botY = fh * 0.5f;
-
-            // 8 Perimeter Snap Points matching the bounding envelope
-            Vector2 local8[8] = {
-                { leftX,  topY },
-                { midX,   topY },
-                { rightX, topY },
-                { rightX, 0.0f },
-                { rightX, botY },
-                { midX,   botY },
-                { leftX,  botY },
-                { leftX,  0.0f }
-            };
-            for (int i = 0; i < 8; i++) {
-                points[i] = LocalToWorldPoint(local8[i], el->pos, el->rotation);
-            }
-            *pointCount = 8;
-        } else {
-            points[0] = el->pos;
-            *pointCount = 1;
+    } else {
+        Vector2 localNodes[8];
+        GetLocalControlNodePositions(el, localNodes);
+        points[0] = el->pos;
+        for (int i = 0; i < 8; i++) {
+            points[i + 1] = LocalToWorldPoint(localNodes[i], el->pos, el->rotation);
         }
+        *pointCount = 9;
     }
 }
 
@@ -358,11 +378,12 @@ AABB GetElementAABB(GridElement *el) {
 }
 
 HandleType HitTestHandles(const GridElement *el, Vector2 worldPos, float zoom) {
-    if (!el->selected || (el->type != ELEMENT_RECT && el->type != ELEMENT_CIRCLE && el->type != ELEMENT_ELLIPSE && el->type != ELEMENT_TEXT_NOTE)) return HANDLE_NONE;
+    if (!el || !el->selected) return HANDLE_NONE;
     float hitRadius = (HANDLE_SIZE_PX * 1.5f) / zoom;
     Vector2 rotLocal = GetLocalRotationHandlePosition(el, zoom);
     Vector2 rotWorld = LocalToWorldPoint(rotLocal, el->pos, el->rotation);
     if (Vector2Distance(worldPos, rotWorld) <= hitRadius) return HANDLE_ROTATION;
+
     Vector2 localNodes[8];
     GetLocalControlNodePositions(el, localNodes);
     for (int i = 0; i < 8; i++) {

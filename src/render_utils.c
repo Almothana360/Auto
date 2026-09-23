@@ -88,76 +88,57 @@ void DrawTextNoteElement(GridElement *el, float zoom, bool isSelected, Font font
     DrawTextEx(font, el->text, txtPos, fSize, 1.0f, borderCol);
 }
 
+/* Generalized Selection Box Gizmo: Applied uniformly to ALL elements accommodating their shapes & sizes */
 void DrawElementSelectionGizmo(const GridElement *el, float zoom) {
     if (!el || !el->selected) return;
 
-    // Outer Bounding Box visualization for every element
-    AABB box = el->bbox;
+    // 1. Compute 4 local bounding box corners tailored to element's exact shape and size
+    float minX, maxX, minY, maxY;
+    GetElementLocalExtents(el, &minX, &maxX, &minY, &maxY);
     float pad = 4.0f / zoom;
-    Rectangle selBox = {
-        box.min.x - pad,
-        box.min.y - pad,
-        (box.max.x - box.min.x) + pad * 2.0f,
-        (box.max.y - box.min.y) + pad * 2.0f
+    minX -= pad; maxX += pad;
+    minY -= pad; maxY += pad;
+
+    Vector2 localCorners[4] = {
+        { minX, minY }, // Top-Left
+        { maxX, minY }, // Top-Right
+        { maxX, maxY }, // Bottom-Right
+        { minX, maxY }  // Bottom-Left
     };
+    Vector2 worldCorners[4];
+    for (int i = 0; i < 4; i++) {
+        worldCorners[i] = LocalToWorldPoint(localCorners[i], el->pos, el->rotation);
+    }
 
-    // Soft selection tint and distinct border
-    DrawRectangleRec(selBox, Fade(GOLD, 0.08f));
-    DrawRectangleLinesEx(selBox, 1.5f / zoom, Fade(GOLD, 0.85f));
+    // 2. Draw soft selection fill & rotated bounding box outline
+    DrawTriangle(worldCorners[0], worldCorners[2], worldCorners[1], Fade(GOLD, 0.06f));
+    DrawTriangle(worldCorners[0], worldCorners[3], worldCorners[2], Fade(GOLD, 0.06f));
+    for (int i = 0; i < 4; i++) {
+        DrawLineEx(worldCorners[i], worldCorners[(i + 1) % 4], 1.5f / zoom, Fade(GOLD, 0.85f));
+    }
 
-    // Corner brackets for clear visual emphasis
-    float cornerLen = fminf(selBox.width * 0.25f, 10.0f / zoom);
-    float cThick = 2.0f / zoom;
+    // 3. Draw standard 8 control handles (white square with blue border) accommodating geometry
+    Vector2 localNodes[8];
+    GetLocalControlNodePositions(el, localNodes);
+    Vector2 worldNodes[8];
+    for (int i = 0; i < 8; i++) {
+        worldNodes[i] = LocalToWorldPoint(localNodes[i], el->pos, el->rotation);
+    }
 
-    // Top-Left
-    DrawLineEx((Vector2){ selBox.x, selBox.y }, (Vector2){ selBox.x + cornerLen, selBox.y }, cThick, GOLD);
-    DrawLineEx((Vector2){ selBox.x, selBox.y }, (Vector2){ selBox.x, selBox.y + cornerLen }, cThick, GOLD);
+    // 4. Draw top rotation handle and connecting stem
+    Vector2 rotLocal = GetLocalRotationHandlePosition(el, zoom);
+    Vector2 rotWorld = LocalToWorldPoint(rotLocal, el->pos, el->rotation);
+    Vector2 topCenterWorld = worldNodes[HANDLE_TOP_CENTER];
+    DrawLineEx(topCenterWorld, rotWorld, 1.5f / zoom, DARKGRAY);
+    DrawCircleV(rotWorld, (HANDLE_SIZE_PX * 0.8f) / zoom, GOLD);
+    DrawCircleLines((int)rotWorld.x, (int)rotWorld.y, (HANDLE_SIZE_PX * 0.8f) / zoom, DARKGRAY);
 
-    // Top-Right
-    DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y }, (Vector2){ selBox.x + selBox.width - cornerLen, selBox.y }, cThick, GOLD);
-    DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y }, (Vector2){ selBox.x + selBox.width, selBox.y + cornerLen }, cThick, GOLD);
-
-    // Bottom-Left
-    DrawLineEx((Vector2){ selBox.x, selBox.y + selBox.height }, (Vector2){ selBox.x + cornerLen, selBox.y + selBox.height }, cThick, GOLD);
-    DrawLineEx((Vector2){ selBox.x, selBox.y + selBox.height }, (Vector2){ selBox.x, selBox.y + selBox.height - cornerLen }, cThick, GOLD);
-
-    // Bottom-Right
-    DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y + selBox.height }, (Vector2){ selBox.x + selBox.width - cornerLen, selBox.y + selBox.height }, cThick, GOLD);
-    DrawLineEx((Vector2){ selBox.x + selBox.width, selBox.y + selBox.height }, (Vector2){ selBox.x + selBox.width, selBox.y + selBox.height - cornerLen }, cThick, GOLD);
-
-    // Interactive resizing handles for supported geometries
-    if (el->type == ELEMENT_RECT || el->type == ELEMENT_CIRCLE || el->type == ELEMENT_ELLIPSE || el->type == ELEMENT_TEXT_NOTE) {
-        Vector2 localNodes[8];
-        GetLocalControlNodePositions(el, localNodes);
-        Vector2 worldNodes[8];
-        for (int i = 0; i < 8; i++) {
-            worldNodes[i] = LocalToWorldPoint(localNodes[i], el->pos, el->rotation);
-        }
-
-        Vector2 rotLocal = GetLocalRotationHandlePosition(el, zoom);
-        Vector2 rotWorld = LocalToWorldPoint(rotLocal, el->pos, el->rotation);
-        Vector2 topCenterWorld = worldNodes[HANDLE_TOP_CENTER];
-
-        DrawLineEx(topCenterWorld, rotWorld, 1.5f / zoom, DARKGRAY);
-        DrawCircleV(rotWorld, (HANDLE_SIZE_PX * 0.8f) / zoom, GOLD);
-        DrawCircleLines((int)rotWorld.x, (int)rotWorld.y, (HANDLE_SIZE_PX * 0.8f) / zoom, DARKGRAY);
-
-        float side = HANDLE_SIZE_PX / zoom;
-        for (int i = 0; i < 8; i++) {
-            Rectangle hRect = { worldNodes[i].x - side * 0.5f, worldNodes[i].y - side * 0.5f, side, side };
-            DrawRectangleRec(hRect, WHITE);
-            DrawRectangleLinesEx(hRect, 1.0f / zoom, BLUE);
-        }
-    } else if (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL) {
-        // Visual indicator of the 8 snapping points when flange is selected
-        Vector2 snapPts[MAX_POLYLINE_POINTS];
-        int snapCount = 0;
-        GetElementSnapPoints(el, snapPts, &snapCount);
-        float pRadius = 3.5f / zoom;
-        for (int i = 0; i < snapCount; i++) {
-            DrawCircleV(snapPts[i], pRadius, Fade(GOLD, 0.85f));
-            DrawCircleLines((int)snapPts[i].x, (int)snapPts[i].y, pRadius + 1.0f / zoom, DARKGRAY);
-        }
+    // 5. Draw 8 square control handles
+    float side = HANDLE_SIZE_PX / zoom;
+    for (int i = 0; i < 8; i++) {
+        Rectangle hRect = { worldNodes[i].x - side * 0.5f, worldNodes[i].y - side * 0.5f, side, side };
+        DrawRectangleRec(hRect, WHITE);
+        DrawRectangleLinesEx(hRect, 1.0f / zoom, BLUE);
     }
 }
 

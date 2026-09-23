@@ -10,7 +10,6 @@ FlangeDatabase g_FlangeDB = { 0 };
 
 bool Flange_LoadDatabase(const char *jsonPath) {
     if (g_FlangeDB.isLoaded) return true;
-
     const char *pathsToTry[] = {
         jsonPath,
         "P_ID_res/Flanges_WN.json",
@@ -65,7 +64,6 @@ bool Flange_LoadDatabase(const char *jsonPath) {
     }
 
     memset(&g_FlangeDB, 0, sizeof(FlangeDatabase));
-
     cJSON *clsItem = classesObj->child;
     while (clsItem && g_FlangeDB.classCount < MAX_FLANGE_CLASSES) {
         FlangeClassTable *ct = &g_FlangeDB.classes[g_FlangeDB.classCount];
@@ -96,7 +94,6 @@ bool Flange_LoadDatabase(const char *jsonPath) {
             ct->recordCount++;
             npsItem = npsItem->next;
         }
-
         g_FlangeDB.classCount++;
         clsItem = clsItem->next;
     }
@@ -212,7 +209,6 @@ GridElement Flange_CreateGridElement(Vector2 worldPos, float rotationDeg, int la
     } else {
         Flange_InitDefaultSpec(&s, FLANGE_WELD_NECK);
     }
-
     el.width = s.fw;
     el.height = s.fh;
     el.radius = s.ft;
@@ -226,7 +222,6 @@ void Flange_DrawElement(const GridElement *el, Color color, float zoom, bool isS
     float fw = el->width;
     float fh = el->height;
     float ft = el->radius;
-
     if (fw <= 0.0f) fw = 19.1f;
     if (fh <= 0.0f) fh = 152.4f;
     if (ft <= 0.0f) ft = 63.5f;
@@ -242,7 +237,6 @@ void Flange_DrawElement(const GridElement *el, Color color, float zoom, bool isS
         { fw,    fh * 0.5f },
         { 0.0f,  fh * 0.5f }
     };
-
     Vector2 wCorners[4];
     for (int i = 0; i < 4; i++) {
         wCorners[i] = LocalToWorldPoint(rectLocalCorners[i], el->pos, el->rotation);
