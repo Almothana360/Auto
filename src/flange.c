@@ -251,18 +251,9 @@ void Flange_DrawElement(const GridElement *el, Color color, float zoom, bool isS
     // Ensure fillColor is completely opaque and uses user-chosen color
     Color fillColor = color;
     if (fillColor.a == 0) fillColor.a = 255;
-
-    // Fill flange rectangle with correct triangle orientation
-    DrawTriangle(wCorners[0], wCorners[2], wCorners[1], fillColor);
-    DrawTriangle(wCorners[0], wCorners[3], wCorners[2], fillColor);
-
-    // Flange rectangle border outline
     Color strokeColor = isSelected ? GOLD : DARKGRAY;
     float userThick = (el->lineThickness > 0.0f) ? el->lineThickness : 3.0f;
     float strokeThick = (isSelected ? (userThick + 1.5f) : userThick) / zoom;
-    for (int i = 0; i < 4; i++) {
-        DrawLineEx(wCorners[i], wCorners[(i + 1) % 4], strokeThick, strokeColor);
-    }
 
     // Weld Neck Centerline: from (fw, 0) to (fw - ft, 0)
     Vector2 tailStartLocal = { fw, 0.0f };
@@ -271,12 +262,14 @@ void Flange_DrawElement(const GridElement *el, Color color, float zoom, bool isS
     Vector2 tailEndWorld   = LocalToWorldPoint(tailEndLocal, el->pos, el->rotation);
     DrawLineEx(tailStartWorld, tailEndWorld, strokeThick, strokeColor);
 
-    // Vertical tick mark at back end of tail: fw/2 above and fw/2 below
-    Vector2 tickTopLocal = { fw - ft, -fw * 0.5f };
-    Vector2 tickBottomLocal = { fw - ft, fw * 0.5f };
-    Vector2 tickTopWorld = LocalToWorldPoint(tickTopLocal, el->pos, el->rotation);
-    Vector2 tickBottomWorld = LocalToWorldPoint(tickBottomLocal, el->pos, el->rotation);
-    DrawLineEx(tickTopWorld, tickBottomWorld, strokeThick, strokeColor);
+    // Fill flange rectangle with correct triangle orientation
+    DrawTriangle(wCorners[0], wCorners[2], wCorners[1], fillColor);
+    DrawTriangle(wCorners[0], wCorners[3], wCorners[2], fillColor);
+
+    // Flange rectangle border outline
+    for (int i = 0; i < 4; i++) {
+        DrawLineEx(wCorners[i], wCorners[(i + 1) % 4], strokeThick, strokeColor);
+    }
 
     // Joint dot at weld prep tip
     DrawCircleV(tailEndWorld, (strokeThick * 0.75f) > 2.0f / zoom ? (strokeThick * 0.75f) : 2.0f / zoom, strokeColor);
