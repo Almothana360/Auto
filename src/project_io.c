@@ -18,6 +18,7 @@ static const char *ElementTypeToString(ElementType type) {
         case ELEMENT_ELLIPSE:   return "ELEMENT_ELLIPSE";
         case ELEMENT_TEXT_NOTE: return "ELEMENT_TEXT_NOTE";
         case ELEMENT_SYMBOL:    return "ELEMENT_SYMBOL";
+        case ELEMENT_PID:       return "ELEMENT_PID";
         default:                return "ELEMENT_RECT";
     }
 }
@@ -34,6 +35,7 @@ static ElementType StringToElementType(const char *str) {
     if (strcmp(str, "ELEMENT_ELLIPSE") == 0)   return ELEMENT_ELLIPSE;
     if (strcmp(str, "ELEMENT_TEXT_NOTE") == 0) return ELEMENT_TEXT_NOTE;
     if (strcmp(str, "ELEMENT_SYMBOL") == 0)    return ELEMENT_SYMBOL;
+    if (strcmp(str, "ELEMENT_PID") == 0)       return ELEMENT_PID;
     return ELEMENT_RECT;
 }
 
@@ -216,6 +218,7 @@ void SaveProject(const char *filename, GridElement *elements, int elementCount, 
                 cJSON_AddItemToObject(elObj, "textSize", cJSON_CreateNumber(el->textSize));
                 break;
             case ELEMENT_SYMBOL:
+            case ELEMENT_PID:
                 cJSON_AddItemToObject(elObj, "text", cJSON_CreateString(el->text));
                 break;
             default:

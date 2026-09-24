@@ -71,14 +71,15 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
         mu_Container *menuWin = mu_get_container(mu_ctx, "##MenuBar");
         if (menuWin) menuWin->rect = barRect;
         if (mu_begin_window_ex(mu_ctx, "##MenuBar", barRect, MU_OPT_NOTITLE | MU_OPT_NORESIZE | MU_OPT_NOSCROLL | MU_OPT_NOFRAME)) {
-            int colWidths[] = { (int)(65 * app->uiScale), (int)(65 * app->uiScale), (int)(80 * app->uiScale), (int)(85 * app->uiScale), (int)(95 * app->uiScale), -1 };
+            int colWidths[] = { (int)(65 * app->uiScale), (int)(65 * app->uiScale), (int)(80 * app->uiScale), (int)(85 * app->uiScale), (int)(75 * app->uiScale), (int)(95 * app->uiScale), -1 };
             int menuBtnH = (int)(menuBarHeight - 6.0f * app->uiScale);
             if (menuBtnH < 18) menuBtnH = 18;
-            mu_layout_row(mu_ctx, 5, colWidths, menuBtnH);
+            mu_layout_row(mu_ctx, 6, colWidths, menuBtnH);
             if (mu_button(mu_ctx, "File")) { mu_open_popup(mu_ctx, "FileMenu"); app->openFileMenu = true; }
             if (mu_button(mu_ctx, "Edit")) { mu_open_popup(mu_ctx, "EditMenu"); app->openEditMenu = true; }
             if (mu_button(mu_ctx, "Window")) { mu_open_popup(mu_ctx, "WindowMenu"); app->openWindowMenu = true; }
             if (mu_button(mu_ctx, "Element")) { mu_open_popup(mu_ctx, "ElementMenu"); app->openElementMenu = true; }
+            if (mu_button(mu_ctx, "P&ID")) { mu_open_popup(mu_ctx, "PidMenu"); app->openPidMenu = true; }
             if (mu_button(mu_ctx, "Functions")) { mu_open_popup(mu_ctx, "FunctionsMenu"); app->openFunctionsMenu = true; }
 
             if (app->openFileMenu && mu_begin_popup(mu_ctx, "FileMenu")) {
@@ -152,10 +153,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
             if (app->openElementMenu && mu_begin_popup(mu_ctx, "ElementMenu")) {
                 mu_layout_row(mu_ctx, 1, (int[]){ (int)(160 * app->uiScale) }, (int)(22 * app->uiScale));
                 if (mu_button(mu_ctx, "Select Tool")) { ProcessCommand("select", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
-                if (mu_button(mu_ctx, "P&ID Circular Palate")) {
-                    CAD_PID_OpenPalette(&app->cadPid, (Vector2){ (float)winW * 0.5f, (float)winH * 0.5f });
-                    app->openElementMenu = false;
-                }
+
                 if (mu_button(mu_ctx, "Add Rectangle")) { ProcessCommand("rect", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
                 if (mu_button(mu_ctx, "Add Circle")) { ProcessCommand("circle", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
                 if (mu_button(mu_ctx, "Add Line")) { ProcessCommand("line", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
@@ -167,7 +165,68 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                 if (mu_button(mu_ctx, "Clear Elements")) { ProcessCommand("clear", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openElementMenu = false; }
                 mu_end_popup(mu_ctx);
             }
-
+if (app->openPidMenu && mu_begin_popup(mu_ctx, "PidMenu")) {
+                mu_layout_row(mu_ctx, 1, (int[]){ (int)(180 * app->uiScale) }, (int)(22 * app->uiScale));
+                if (mu_button(mu_ctx, "P&ID Circular Palette")) {
+                    CAD_PID_OpenPalette(&app->cadPid, (Vector2){ (float)winW * 0.5f, (float)winH * 0.5f });
+                    app->openPidMenu = false;
+                }
+                if (mu_button(mu_ctx, "Add Pipe")) {
+                    app->cadPid.activeToolInstrument = PID_ITEM_PIPE;
+                    app->cadPid.isPlacingInstrument = true;
+                    app->cadPid.placementStep = 0;
+                    g_CADState.activeTool = TOOL_SELECT;
+                    snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID Pipe: Click Start Position");
+                    app->statusMessageTimer = 2.5f;
+                    app->openPidMenu = false;
+                }
+                if (mu_button(mu_ctx, "Add Flange")) {
+                    app->cadPid.activeToolInstrument = PID_ITEM_FLANGE;
+                    app->cadPid.isPlacingInstrument = true;
+                    app->cadPid.placementStep = 0;
+                    g_CADState.activeTool = TOOL_SELECT;
+                    snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Flange");
+                    app->statusMessageTimer = 2.0f;
+                    app->openPidMenu = false;
+                }
+                if (mu_button(mu_ctx, "Add Valve")) {
+                    app->cadPid.activeToolInstrument = PID_ITEM_VALVE;
+                    app->cadPid.isPlacingInstrument = true;
+                    app->cadPid.placementStep = 0;
+                    g_CADState.activeTool = TOOL_SELECT;
+                    snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Valve");
+                    app->statusMessageTimer = 2.0f;
+                    app->openPidMenu = false;
+                }
+                if (mu_button(mu_ctx, "Add Tee")) {
+                    app->cadPid.activeToolInstrument = PID_ITEM_TEE;
+                    app->cadPid.isPlacingInstrument = true;
+                    app->cadPid.placementStep = 0;
+                    g_CADState.activeTool = TOOL_SELECT;
+                    snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Tee");
+                    app->statusMessageTimer = 2.0f;
+                    app->openPidMenu = false;
+                }
+                if (mu_button(mu_ctx, "Add Reducer")) {
+                    app->cadPid.activeToolInstrument = PID_ITEM_REDUCER;
+                    app->cadPid.isPlacingInstrument = true;
+                    app->cadPid.placementStep = 0;
+                    g_CADState.activeTool = TOOL_SELECT;
+                    snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Reducer");
+                    app->statusMessageTimer = 2.0f;
+                    app->openPidMenu = false;
+                }
+                if (mu_button(mu_ctx, "Add Elbow")) {
+                    app->cadPid.activeToolInstrument = PID_ITEM_ELBOW;
+                    app->cadPid.isPlacingInstrument = true;
+                    app->cadPid.placementStep = 0;
+                    g_CADState.activeTool = TOOL_SELECT;
+                    snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Elbow");
+                    app->statusMessageTimer = 2.0f;
+                    app->openPidMenu = false;
+                }
+                mu_end_popup(mu_ctx);
+            }
             if (app->openFunctionsMenu && mu_begin_popup(mu_ctx, "FunctionsMenu")) {
                 mu_layout_row(mu_ctx, 1, (int[]){ (int)(130 * app->uiScale) }, (int)(22 * app->uiScale));
                 if (mu_button(mu_ctx, "Dimension")) { ProcessCommand("dimension", app->elements, &app->elementCount, app->layers, &app->layerCount, &app->activeLayerIndex, &g_CADState.activeTool, &app->camera, &app->showHudPanel, &app->showInspector, &app->showLeftDock, &app->showLeftDock, &app->uiScale, app->statusMessage, &app->statusMessageTimer, &app->dimStep, app->cmdHistory, &app->spatialIndexDirty, app->currentUnit); app->openFunctionsMenu = false; }
@@ -281,7 +340,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                     for (int i = 0; i < app->elementCount; i++) {
                         mu_push_id(mu_ctx, &app->elements[i], sizeof(GridElement*));
                         mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(19 * app->uiScale));
-                        const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rectangle" : (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" : (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" : (app->elements[i].type == ELEMENT_ARC ? "Arc" : (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" : (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" : (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" : (app->elements[i].type == ELEMENT_LINE ? "Line" : (app->elements[i].type == ELEMENT_SYMBOL ? (strchr(app->elements[i].text, '|') ? "Weld Neck Flange" : "Symbol/Instrument") : "Dimension"))))))));
+                        const char *typeStr = (app->elements[i].type == ELEMENT_PID) ? (strchr(app->elements[i].text, '|') ? "P&ID Flange" : (app->elements[i].text[0] ? app->elements[i].text : "P&ID Item")) : ((app->elements[i].type == ELEMENT_RECT) ? "Rectangle" : (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" : (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" : (app->elements[i].type == ELEMENT_ARC ? "Arc" : (app->elements[i].type == ELEMENT_TEXT_NOTE ? "Text Note" : (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" : (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" : (app->elements[i].type == ELEMENT_LINE ? "Line" : (app->elements[i].type == ELEMENT_SYMBOL ? (strchr(app->elements[i].text, '|') ? "Weld Neck Flange" : "Symbol/Instrument") : "Dimension")))))))));
                         const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
                         char itemLabel[64];
                         snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
@@ -325,10 +384,10 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
 
                 if (selectedCount > 0 && selectedElementIndex >= 0) {
                     GridElement *el = &app->elements[selectedElementIndex];
-                    bool isFlange = (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL);
-
+                    bool isFlange = ((el->type == ELEMENT_SYMBOL || el->type == ELEMENT_PID) && strchr(el->text, '|') != NULL);
                     mu_layout_row(mu_ctx, 1, (int[]){ -1 }, (int)(18 * app->uiScale));
                     const char *title = isFlange ? "Type: Weld Neck Flange (ASME B16.5)" :
+                                        ((el->type == ELEMENT_PID) ? TextFormat("Type: P&ID %s", el->text[0] ? el->text : "Instrument") :
                                         ((el->type == ELEMENT_RECT) ? "Type: Rectangle" :
                                         (el->type == ELEMENT_CIRCLE ? "Type: Circle" :
                                         (el->type == ELEMENT_ELLIPSE ? "Type: Ellipse" :
@@ -337,7 +396,7 @@ void RenderAllGuiPanels(mu_Context *mu_ctx, AppContext *app) {
                                         (el->type == ELEMENT_POLYLINE ? "Type: Polyline" :
                                         (el->type == ELEMENT_FREEHAND ? "Type: Freehand" :
                                         (el->type == ELEMENT_LINE ? "Type: Line" :
-                                        (el->type == ELEMENT_SYMBOL ? "Type: Instrument / Symbol" : "Type: Dimension")))))))));
+                                        (el->type == ELEMENT_SYMBOL ? "Type: Instrument / Symbol" : "Type: Dimension"))))))))));
                     mu_text(mu_ctx, title);
                     mu_text(mu_ctx, TextFormat("Entity ID: %u", el->id));
                     mu_text(mu_ctx, TextFormat("Pos: (%.1f, %.1f)", el->pos.x, el->pos.y));

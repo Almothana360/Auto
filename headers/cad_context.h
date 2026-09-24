@@ -77,6 +77,7 @@ typedef struct AppContext {
     bool openEditMenu;
     bool openWindowMenu;
     bool openElementMenu;
+    bool openPidMenu;
     bool openFunctionsMenu;
     PIDSystemState cadPid;
     ConnectionSystemState connState;

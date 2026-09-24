@@ -42,7 +42,8 @@ typedef enum {
     ELEMENT_ARC,
     ELEMENT_ELLIPSE,
     ELEMENT_TEXT_NOTE,
-    ELEMENT_SYMBOL
+    ELEMENT_SYMBOL,
+    ELEMENT_PID
 } ElementType;
 
 typedef ElementType CADEntityType;

@@ -238,28 +238,33 @@ void CAD_PID_PlaceInstrument(PIDInstrumentType type, Vector2 worldPos, AppContex
             break;
         }
         case PID_ITEM_VALVE: {
-            newEl.type = ELEMENT_SYMBOL;
+            newEl.type = ELEMENT_PID;
             newEl.color = GOLD;
+            snprintf(newEl.text, sizeof(newEl.text), "Valve");
             break;
         }
         case PID_ITEM_TEE: {
-            newEl.type = ELEMENT_SYMBOL;
+            newEl.type = ELEMENT_PID;
             newEl.color = LIME;
+            snprintf(newEl.text, sizeof(newEl.text), "Tee");
             break;
         }
         case PID_ITEM_REDUCER: {
-            newEl.type = ELEMENT_SYMBOL;
+            newEl.type = ELEMENT_PID;
             newEl.color = PURPLE;
+            snprintf(newEl.text, sizeof(newEl.text), "Reducer");
             break;
         }
         case PID_ITEM_ELBOW: {
-            newEl.type = ELEMENT_SYMBOL;
+            newEl.type = ELEMENT_PID;
             newEl.color = ORANGE;
+            snprintf(newEl.text, sizeof(newEl.text), "Elbow");
             break;
         }
         default:
-            newEl.type = ELEMENT_SYMBOL;
+            newEl.type = ELEMENT_PID;
             newEl.color = RAYWHITE;
+            snprintf(newEl.text, sizeof(newEl.text), "Instrument");
             break;
     }
 

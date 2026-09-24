@@ -181,7 +181,8 @@ void GetElementLocalExtents(const GridElement *el, float *minX, float *maxX, flo
             }
             break;
         }
-        case ELEMENT_SYMBOL: {
+        case ELEMENT_SYMBOL:
+        case ELEMENT_PID:{
             if (strchr(el->text, '|') != NULL) {
                 float fw = (el->width > 0.0f ? el->width : 19.1f) * (el->scale.x > 0.0f ? el->scale.x : 1.0f);
                 float fh = (el->height > 0.0f ? el->height : 152.4f) * (el->scale.y > 0.0f ? el->scale.y : 1.0f);
@@ -345,7 +346,8 @@ AABB GetElementAABB(GridElement *el) {
             box = ExpandAABB(box, 15.0f);
             break;
         }
-        case ELEMENT_SYMBOL: {
+        case ELEMENT_SYMBOL:
+        case ELEMENT_PID:{
             if (strchr(el->text, '|') != NULL) {
                 float fw = el->width * el->scale.x;
                 float fh = el->height * el->scale.y;

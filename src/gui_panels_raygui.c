@@ -111,6 +111,7 @@ static void CloseAllPopups(AppContext *app) {
     app->openEditMenu = false;
     app->openWindowMenu = false;
     app->openElementMenu = false;
+    app->openPidMenu = false;
     app->openFunctionsMenu = false;
 }
 
@@ -201,6 +202,7 @@ bool CheckGuiHover_Raygui(AppContext *app) {
     if (app->openEditMenu && CheckCollisionPointRec(mousePos, (Rectangle){ (4.0f + 76.0f + 4.0f) * app->uiScale, menuBarHeight, 140.0f * app->uiScale, 2 * (btnH + 2) + 6 })) return true;
     if (app->openWindowMenu && CheckCollisionPointRec(mousePos, (Rectangle){ (4.0f + 76.0f + 4.0f + 76.0f + 4.0f) * app->uiScale, menuBarHeight, 235.0f * app->uiScale, 11 * (btnH + 2) + 8 })) return true;
     if (app->openElementMenu && CheckCollisionPointRec(mousePos, (Rectangle){ (4.0f + 76.0f + 4.0f + 76.0f + 4.0f + 92.0f + 4.0f), menuBarHeight, 180.0f * app->uiScale, 12 * (btnH + 2) + 6 })) return true;
+    if (app->openPidMenu && CheckCollisionPointRec(mousePos, (Rectangle){ (4.0f + 76.0f + 4.0f + 76.0f + 4.0f + 92.0f + 4.0f + 96.0f + 4.0f) * app->uiScale, menuBarHeight, 180.0f * app->uiScale, 7 * (btnH + 2) + 6 })) return true;
     if (app->openFunctionsMenu && CheckCollisionPointRec(mousePos, (Rectangle){ (4.0f + 76.0f + 4.0f + 76.0f + 4.0f + 92.0f + 4.0f + 96.0f + 4.0f), menuBarHeight, 150.0f * app->uiScale, 2 * (btnH + 2) + 6 })) return true;
 
     return false;
@@ -275,6 +277,13 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
         app->openElementMenu = !prev;
     }
     mBtnX += mBtnW + 20.0f * app->uiScale + spacing;
+    if (GuiButton((Rectangle){ mBtnX, mBtnY, mBtnW + 10.0f * app->uiScale, mBtnH }, GuiIconText(ICON_COLOR_PICKER, "P&ID"))) {
+        clickedTopMenuButton = true;
+        bool prev = app->openPidMenu;
+        CloseAllPopups(app);
+        app->openPidMenu = !prev;
+    }
+    mBtnX += mBtnW + 10.0f * app->uiScale + spacing;
     if (GuiButton((Rectangle){ mBtnX, mBtnY, mBtnW + 26.0f * app->uiScale, mBtnH }, GuiIconText(ICON_TOOLS, "Functions"))) {
         clickedTopMenuButton = true;
         bool prev = app->openFunctionsMenu;
@@ -408,7 +417,8 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
 
         bool isCtrl = IsKeyDown(KEY_LEFT_CONTROL) || IsKeyDown(KEY_RIGHT_CONTROL);
         for (int i = 0; i < app->elementCount && i < maxVisibleElems; i++) {
-            const char *typeStr = (app->elements[i].type == ELEMENT_RECT) ? "Rect" :
+            const char *typeStr = (app->elements[i].type == ELEMENT_PID) ? (strchr(app->elements[i].text, '|') ? "WN Flange" : (app->elements[i].text[0] ? app->elements[i].text : "P&ID")) :
+                                  ((app->elements[i].type == ELEMENT_RECT) ? "Rect" :
                                   (app->elements[i].type == ELEMENT_CIRCLE ? "Circle" :
                                   (app->elements[i].type == ELEMENT_ELLIPSE ? "Ellipse" :
                                   (app->elements[i].type == ELEMENT_ARC ? "Arc" :
@@ -416,7 +426,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                   (app->elements[i].type == ELEMENT_POLYLINE ? "Polyline" :
                                   (app->elements[i].type == ELEMENT_FREEHAND ? "Freehand" :
                                   (app->elements[i].type == ELEMENT_LINE ? "Line" :
-                                  (app->elements[i].type == ELEMENT_SYMBOL ? (strchr(app->elements[i].text, '|') ? "WN Flange" : "Symbol") : "Dim"))))))));
+                                  (app->elements[i].type == ELEMENT_SYMBOL ? (strchr(app->elements[i].text, '|') ? "WN Flange" : "Symbol") : "Dim")))))))));
             const char *layerName = (app->elements[i].layerIndex >= 0 && app->elements[i].layerIndex < app->layerCount) ? app->layers[app->elements[i].layerIndex].name : "Unknown";
             char itemLabel[64];
             snprintf(itemLabel, sizeof(itemLabel), "%s#%d [ID:%u] %s [%s]", app->elements[i].selected ? "* " : "", i + 1, app->elements[i].id, typeStr, layerName);
@@ -463,15 +473,14 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
 
         if (selectedCount > 0 && selectedElementIndex >= 0) {
             GridElement *el = &app->elements[selectedElementIndex];
-            bool isFlange = (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL);
-
+            bool isFlange = ((el->type == ELEMENT_SYMBOL || el->type == ELEMENT_PID) && strchr(el->text, '|') != NULL);
             if (selectedElementIndex != s_flangeLastSelectedIdx) {
                 s_flangeClassEditMode = false;
                 s_flangeNpsEditMode = false;
                 s_flangeLastSelectedIdx = selectedElementIndex;
             }
-
             const char *title = isFlange ? "Type: Weld Neck Flange (ASME B16.5)" :
+                                ((el->type == ELEMENT_PID) ? TextFormat("Type: P&ID %s", el->text[0] ? el->text : "Instrument") :
                                 ((el->type == ELEMENT_RECT) ? "Type: Rectangle" :
                                 ((el->type == ELEMENT_CIRCLE) ? "Type: Circle" :
                                 ((el->type == ELEMENT_ELLIPSE) ? "Type: Ellipse" :
@@ -480,7 +489,7 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
                                 ((el->type == ELEMENT_POLYLINE) ? "Type: Polyline" :
                                 ((el->type == ELEMENT_FREEHAND) ? "Type: Freehand" :
                                 ((el->type == ELEMENT_LINE) ? "Type: Line" :
-                                ((el->type == ELEMENT_SYMBOL) ? "Type: Symbol / Inst" : "Type: Dimension")))))))));
+                                ((el->type == ELEMENT_SYMBOL) ? "Type: Symbol / Inst" : "Type: Dimension"))))))))));
 
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, title); inspY += btnH;
             GuiLabel((Rectangle){ inspX, inspY, inspW, btnH }, TextFormat("Entity ID: %u", el->id)); inspY += btnH;
@@ -1061,16 +1070,76 @@ void RenderAllGuiPanels_Raygui(AppContext *app) {
             CloseAllPopups(app);
         }
     }
+    if (app->openPidMenu) {
+        Rectangle pop = { (4.0f + 76.0f + 4.0f + 76.0f + 4.0f + 92.0f + 4.0f + 96.0f + 4.0f) * app->uiScale, menuBarHeight, 180.0f * app->uiScale, 7 * (btnH + 2) + 6 };
+        DrawRectangleRec(pop, pBg);
+        DrawRectangleLinesEx(pop, 1.0f, pBorder);
+        float py = pop.y + 3;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_COLOR_PICKER, "P&ID Palette"))) {
+            CAD_PID_OpenPalette(&app->cadPid, (Vector2){ (float)winW * 0.5f, (float)winH * 0.5f });
+            CloseAllPopups(app);
+        } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_PENCIL, "Add Pipe"))) {
+            app->cadPid.activeToolInstrument = PID_ITEM_PIPE;
+            app->cadPid.isPlacingInstrument = true;
+            app->cadPid.placementStep = 0;
+            g_CADState.activeTool = TOOL_SELECT;
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID Pipe: Click Start Position");
+            app->statusMessageTimer = 2.5f;
+            CloseAllPopups(app);
+        } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_BOX, "Add Flange"))) {
+            app->cadPid.activeToolInstrument = PID_ITEM_FLANGE;
+            app->cadPid.isPlacingInstrument = true;
+            app->cadPid.placementStep = 0;
+            g_CADState.activeTool = TOOL_SELECT;
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Flange");
+            app->statusMessageTimer = 2.0f;
+            CloseAllPopups(app);
+        } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_BOX_CIRCLE_MASK, "Add Valve"))) {
+            app->cadPid.activeToolInstrument = PID_ITEM_VALVE;
+            app->cadPid.isPlacingInstrument = true;
+            app->cadPid.placementStep = 0;
+            g_CADState.activeTool = TOOL_SELECT;
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Valve");
+            app->statusMessageTimer = 2.0f;
+            CloseAllPopups(app);
+        } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_TOOLS, "Add Tee"))) {
+            app->cadPid.activeToolInstrument = PID_ITEM_TEE;
+            app->cadPid.isPlacingInstrument = true;
+            app->cadPid.placementStep = 0;
+            g_CADState.activeTool = TOOL_SELECT;
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Tee");
+            app->statusMessageTimer = 2.0f;
+            CloseAllPopups(app);
+        } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_STEP_OVER, "Add Reducer"))) {
+            app->cadPid.activeToolInstrument = PID_ITEM_REDUCER;
+            app->cadPid.isPlacingInstrument = true;
+            app->cadPid.placementStep = 0;
+            g_CADState.activeTool = TOOL_SELECT;
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Reducer");
+            app->statusMessageTimer = 2.0f;
+            CloseAllPopups(app);
+        } py += btnH + 2;
+        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_CORNER, "Add Elbow"))) {
+            app->cadPid.activeToolInstrument = PID_ITEM_ELBOW;
+            app->cadPid.isPlacingInstrument = true;
+            app->cadPid.placementStep = 0;
+            g_CADState.activeTool = TOOL_SELECT;
+            snprintf(app->statusMessage, sizeof(app->statusMessage), "P&ID: Click to place Elbow");
+            app->statusMessageTimer = 2.0f;
+            CloseAllPopups(app);
+        }
+    }
     if (app->openElementMenu) {
-        Rectangle pop = { (4.0f + 76.0f + 4.0f + 76.0f + 4.0f + 92.0f + 4.0f), menuBarHeight, 180.0f * app->uiScale, 11 * (btnH + 2) + 6 };
+        Rectangle pop = { (4.0f + 76.0f + 4.0f + 76.0f + 4.0f + 92.0f + 4.0f) * app->uiScale, menuBarHeight, 180.0f * app->uiScale, 10 * (btnH + 2) + 6 };
         DrawRectangleRec(pop, pBg);
         DrawRectangleLinesEx(pop, 1.0f, pBorder);
         float py = pop.y + 3;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_CURSOR_CLASSIC, "Select Tool"))) { DispatchCommand(app, "select"); CloseAllPopups(app); } py += btnH + 2;
-        if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_COLOR_PICKER, "P&ID Circular Palate"))) {
-            CAD_PID_OpenPalette(&app->cadPid, (Vector2){ (float)winW * 0.5f, (float)winH * 0.5f });
-            CloseAllPopups(app);
-        } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_BOX, "Add Rectangle"))) { DispatchCommand(app, "rect"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_BOX_CIRCLE_MASK, "Add Circle"))) { DispatchCommand(app, "circle"); CloseAllPopups(app); } py += btnH + 2;
         if (GuiButton((Rectangle){ pop.x + 3, py, pop.width - 6, btnH }, GuiIconText(ICON_PENCIL, "Add Line"))) { DispatchCommand(app, "line"); CloseAllPopups(app); } py += btnH + 2;

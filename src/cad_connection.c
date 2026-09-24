@@ -40,7 +40,7 @@ void ConnectionSystem_UpdatePorts(ConnectionSystemState *conn, AppContext *app) 
     if (selIdx < 0 || selIdx >= app->elementCount) return;
 
     GridElement *el = &app->elements[selIdx];
-    bool isFlange = (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL);
+    bool isFlange = ((el->type == ELEMENT_SYMBOL || el->type == ELEMENT_PID) && strchr(el->text, '|') != NULL);
     if (!isFlange) {
         conn->showContextMenu = false;
         return;

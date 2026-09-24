@@ -106,7 +106,7 @@ void UpdateSelectionAndHandles(AppContext *app, Vector2 activeToolPoint, bool ov
                         float distPointY = fabsf(localMouse.y);
                         if (distPointX > MIN_ELEMENT_SIZE) el->radiusX = distPointX;
                         if (distPointY > MIN_ELEMENT_SIZE) el->radiusY = distPointY;
-                    } else if (el->type == ELEMENT_SYMBOL && strchr(el->text, '|') != NULL) {
+                    } else if ((el->type == ELEMENT_SYMBOL || el->type == ELEMENT_PID) && strchr(el->text, '|') != NULL) {
                         // Flanges maintain physical standard dimensions, rotation handled cleanly
                     } else {
                         if (origW > 0.001f) el->scale.x = fmaxf(0.1f, app->initialHandleElementState.scale.x * (newW / origW));

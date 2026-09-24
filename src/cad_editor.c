@@ -156,7 +156,7 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
                     DrawTextNoteElement(&app->elements[i], app->camera.zoom, isSelected, noteFont);
                 } else if (app->elements[i].type == ELEMENT_DIMENSION) {
                     DrawDimensionElement(&app->elements[i], app->currentUnit, app->camera.zoom, isSelected, noteFont);
-                } else if (app->elements[i].type == ELEMENT_SYMBOL) {
+                } else if (app->elements[i].type == ELEMENT_SYMBOL || app->elements[i].type == ELEMENT_PID) {
                     if (strchr(app->elements[i].text, '|') != NULL) {
                         Flange_DrawElement(&app->elements[i], renderColor, app->camera.zoom, isSelected);
                     } else {

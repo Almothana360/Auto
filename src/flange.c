@@ -194,7 +194,7 @@ GridElement Flange_CreateGridElement(Vector2 worldPos, float rotationDeg, int la
     GridElement el;
     memset(&el, 0, sizeof(GridElement));
     el.id = GenerateEntityID();
-    el.type = ELEMENT_SYMBOL;
+    el.type = ELEMENT_PID;
     el.pos = worldPos;
     el.scale = (Vector2){ 1.0f, 1.0f };
     el.rotation = rotationDeg;

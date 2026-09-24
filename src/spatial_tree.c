@@ -138,7 +138,7 @@ static bool CheckSingleElementHit(const GridElement *el, Vector2 worldPos) {
     } else if (el->type == ELEMENT_ARC) {
         float dist = Vector2Distance(worldPos, el->pos);
         return (fabsf(dist - el->radius) < 12.0f);
-    } else if (el->type == ELEMENT_SYMBOL) {
+    } else if (el->type == ELEMENT_SYMBOL || el->type == ELEMENT_PID) {
         if (strchr(el->text, '|') != NULL) {
             float fw = el->width * el->scale.x;
             float fh = el->height * el->scale.y;
