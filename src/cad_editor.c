@@ -8,6 +8,7 @@
 #include "project_io.h"
 #include "render_utils.h"
 #include "flange.h"
+#include "cad_connection.h"
 #include "raymath.h"
 #include <math.h>
 #include <stdio.h>
@@ -19,6 +20,12 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
     // Process active P&ID radial palette and placement actions
     bool pidHandled = CAD_PID_Update(&app->cadPid, app, overUI);
     if (pidHandled) {
+        return;
+    }
+
+    // Process connection buttons & connection context menus
+    bool connHandled = ConnectionSystem_HandleInput(&app->connState, app, overUI);
+    if (connHandled) {
         return;
     }
 
@@ -36,7 +43,6 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
     }
 
     int selectedCount = CountSelectedElements(app->elements, app->elementCount);
-
     if (IsMouseButtonPressed(MOUSE_BUTTON_RIGHT) && !overUI && g_CADState.activeTool != TOOL_PAN) {
         if (g_CADState.activeTool == TOOL_ADD_POLYLINE && app->tempPolyline.pointCount > 1) {
             if (app->elementCount < MAX_ELEMENTS) {
@@ -45,13 +51,11 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
                 app->tempPolyline.scale = (Vector2){ 1.0f, 1.0f };
                 app->tempPolyline.selected = true;
                 GetElementAABB(&app->tempPolyline);
-
                 Command cmd = { 0 };
                 cmd.type = CMD_CREATE;
                 cmd.data.create.index = app->elementCount;
                 cmd.data.create.element = app->tempPolyline;
                 ExecuteCommand(app->cmdHistory, cmd, app->elements, &app->elementCount, app->layers, &app->layerCount, &app->spatialIndexDirty);
-
                 snprintf(app->statusMessage, 64, "Polyline Added");
                 app->statusMessageTimer = 2.0f;
             }
@@ -65,7 +69,6 @@ void UpdateCadEditor(AppContext *app, mu_Context *mu_ctx, bool overUI) {
             float ctxHeight = 210.0f * app->uiScale;
             if (app->contextMenuPos.x + ctxWidth > GetScreenWidth()) app->contextMenuPos.x = GetScreenWidth() - ctxWidth;
             if (app->contextMenuPos.y + ctxHeight > GetScreenHeight()) app->contextMenuPos.y = GetScreenHeight() - ctxHeight;
-
             if (hitIndex != -1) {
                 app->contextOnElement = true;
                 app->contextElementIndex = hitIndex;
@@ -118,7 +121,6 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
             for (int i = 0; i < app->elementCount; i++) {
                 if (app->elements[i].layerIndex != l) continue;
                 if (!AABBIntersectsAABB(app->cachedAABBs[i], viewFrustumAABB)) continue;
-
                 bool isSelected = app->elements[i].selected;
                 Color renderColor = GetElementColor(&app->elements[i], app->layers, app->layerCount);
                 float lThick = (app->elements[i].lineThickness > 0.0f ? app->elements[i].lineThickness : 3.0f);
@@ -128,7 +130,6 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
                     Vector2 origin = { rect.width * 0.5f, rect.height * 0.5f };
                     DrawRectanglePro(rect, origin, app->elements[i].rotation, renderColor);
                     if (lThick > 1.0f) {
-                        // Draw clean stroke around rectangle using element's line thickness
                         DrawRectangleLinesEx(
                             (Rectangle){ rect.x - origin.x, rect.y - origin.y, rect.width, rect.height },
                             lThick / app->camera.zoom,
@@ -192,5 +193,9 @@ void RenderCadEditorViewport(AppContext *app, bool overUI) {
     }
 
     RenderSelectionGizmos(app);
+
+    // Render connection directional triangles in world coordinates
+    ConnectionSystem_RenderPortButtons(&app->connState, app);
+
     EndMode2D();
 }

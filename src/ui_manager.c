@@ -1,14 +1,13 @@
 #include "ui_manager.h"
 #include <stddef.h>
 #include <math.h>
-
 #define RAYGUI_IMPLEMENTATION
 #include "raygui.h"
-
 #include "gui_panels.h"
 #include "gui_panels_raygui.h"
 #include "render_utils.h"
 #include "cad_pid.h"
+#include "cad_connection.h"
 
 void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
     mu_init(mu_ctx);
@@ -20,7 +19,6 @@ void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
     GuiSetFont(bodyFont);
     GuiSetStyle(DEFAULT, TEXT_SIZE, (int)(11 * app->uiScale));
 
-    // Scale RayGUI icons dynamically with the initial UI scale
     int iconScale = (int)roundf(app->uiScale);
     if (iconScale < 1) iconScale = 1;
     GuiSetIconScale(iconScale);
@@ -30,6 +28,7 @@ void UIManager_Init(AppContext *app, mu_Context *mu_ctx) {
 
 void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
     if (app->uiConfig.uiBackend != UI_BACKEND_MICROUI) return;
+    if (app->connState.showMessageBox) return;
 
     Vector2 mousePos = GetMousePosition();
     mu_input_mousemove(mu_ctx, (int)mousePos.x, (int)mousePos.y);
@@ -41,6 +40,7 @@ void UIManager_ProcessInput(AppContext *app, mu_Context *mu_ctx) {
 
     int btnMap[3] = { MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT, MOUSE_BUTTON_MIDDLE };
     int muBtnMap[3] = { MU_MOUSE_LEFT, MU_MOUSE_RIGHT, MU_MOUSE_MIDDLE };
+
     for (int b = 0; b < 3; b++) {
         if (IsMouseButtonPressed(btnMap[b])) mu_input_mousedown(mu_ctx, (int)mousePos.x, (int)mousePos.y, muBtnMap[b]);
         if (IsMouseButtonReleased(btnMap[b])) mu_input_mouseup(mu_ctx, (int)mousePos.x, (int)mousePos.y, muBtnMap[b]);
@@ -69,7 +69,7 @@ bool UIManager_UpdateAndRenderPanels(AppContext *app, mu_Context *mu_ctx) {
     int winW = GetScreenWidth();
     int winH = GetScreenHeight();
 
-    if (app->cadPid.isPaletteOpen) {
+    if (app->cadPid.isPaletteOpen || ConnectionSystem_IsHovered(&app->connState, app)) {
         return true;
     }
 
@@ -129,6 +129,10 @@ void UIManager_RenderOverlays(AppContext *app, mu_Context *mu_ctx) {
     Font menuFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_MENU);
     CAD_PID_RenderPalette(&app->cadPid, app->uiScale, menuFont);
 
+    // Render Connection System context menu
+    ConnectionSystem_RenderContextMenu(&app->connState, app);
+
+    // Bottom command prompt
     float cmdW = 460.0f * app->uiScale;
     float cmdH = 26.0f * app->uiScale;
     Rectangle commandBoxRect = { ((float)winW - cmdW) / 2.0f, (float)winH - bottomStripH - cmdH - (4.0f * app->uiScale), cmdW, cmdH };
@@ -140,6 +144,9 @@ void UIManager_RenderOverlays(AppContext *app, mu_Context *mu_ctx) {
             app->commandEditMode = !app->commandEditMode;
         }
     }
+
+    // Modal RayGUI Message Box (supported across both backends)
+    ConnectionSystem_RenderMessageBox(&app->connState, app);
 
     if (app->statusMessageTimer > 0.0f) {
         Font titleFont = ResourceManager_GetFont(&app->resManager, FONT_SLOT_TITLE);
